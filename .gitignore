@@ -1,0 +1,19 @@
+# Local artifacts
+.env
+.reviewstem/
+improvement_history.csv
+evolution_graph_*.mmd
+temp_test_dir/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+build/
+dist/
+*.egg-info/
+
+# System
+.DS_Store
+Thumbs.db

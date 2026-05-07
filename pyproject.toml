@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reviewstem"
+version = "0.1.0"
+description = "A context-aware pull request review agent."
+authors = [{name = "ReviewStem Authors"}]
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+]
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+reviewstem = "reviewstem.__main__:cli"
