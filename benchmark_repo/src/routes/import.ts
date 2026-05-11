@@ -3,9 +3,10 @@ const router = express.Router();
 
 router.post('/import', async (req, res) => {
     try {
-        await processLargeCSV(req.body.csv);
+        processLargeCSV(req.body.csv).catch(e => console.error(e));
         res.sendStatus(200);
     } catch (e) {
+        res.status(500).json({ error: 'import failed' });
     }
 });
 

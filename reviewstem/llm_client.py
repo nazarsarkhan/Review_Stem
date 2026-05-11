@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type, TypeVar
 
 import openai
 from dotenv import load_dotenv
@@ -27,6 +27,8 @@ class LLMClient:
         self.client = openai.AsyncOpenAI(api_key=self.api_key)
         self.model = self.config.model
         self.temperature = self.config.temperature
+        self.call_count = 0
+        self.call_log: list[dict[str, Any]] = []
 
     async def parse(
         self,
@@ -35,6 +37,7 @@ class LLMClient:
         system_prompt: str = "You are a precise, professional code review assistant.",
         tools: Optional[List[dict]] = None,
         messages: Optional[List[dict]] = None,
+        stage: str = "parse",
     ) -> T:
         """Invoke the OpenAI structured-output parser with retries."""
         max_retries = 3
@@ -58,6 +61,7 @@ class LLMClient:
         for attempt in range(max_retries):
             try:
                 response = await self.client.beta.chat.completions.parse(**kwargs)
+                self._record_call(stage, response)
                 parsed = response.choices[0].message.parsed
                 if parsed:
                     return parsed
@@ -77,6 +81,7 @@ class LLMClient:
         self,
         prompt: str,
         system_prompt: str = "You are a precise, professional code review assistant.",
+        stage: str = "generate",
     ) -> str:
         """Generate plain text from the configured model."""
         response = await self.client.chat.completions.create(
@@ -87,4 +92,17 @@ class LLMClient:
             ],
             temperature=self.temperature,
         )
+        self._record_call(stage, response)
         return response.choices[0].message.content or ""
+
+    def _record_call(self, stage: str, response: Any) -> None:
+        self.call_count += 1
+        usage = getattr(response, "usage", None)
+        self.call_log.append(
+            {
+                "stage": stage,
+                "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
+                "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
+                "total_tokens": getattr(usage, "total_tokens", None) if usage else None,
+            }
+        )

@@ -1,0 +1,51 @@
+{
+  "case_id": "n_plus_one_query",
+  "description": "N+1 query problem causing performance degradation by fetching related data in a loop",
+  "diff_file": "benchmark_repo/src/routes/posts.ts",
+  "expected_issues": [
+    {
+      "severity": "High",
+      "category": "Performance",
+      "issue_type": "N+1 Query Problem",
+      "description": "GET /posts endpoint fetches authors in a loop, causing N+1 queries. For 100 posts, this makes 101 database queries (1 for posts + 100 for authors) instead of 2 queries with a JOIN.",
+      "location": "benchmark_repo/src/routes/posts.ts:7-14",
+      "vulnerable_code": "for (const post of posts) {\n  post.author = await db.users.findById(post.authorId);\n}",
+      "impact": "Severe performance degradation with large datasets, increased database load, slow response times, potential timeout on high traffic",
+      "suggested_fix": "Use JOIN or eager loading to fetch authors in a single query:\n\nOption 1 (ORM with includes):\nconst posts = await db.posts.findAll({ include: 'author' });\n\nOption 2 (Manual JOIN):\nconst posts = await db.query(`\n  SELECT posts.*, users.id as author_id, users.name as author_name\n  FROM posts\n  LEFT JOIN users ON posts.author_id = users.id\n`);\n\nOption 3 (Batch loading):\nconst authorIds = [...new Set(posts.map(p => p.authorId))];\nconst authors = await db.users.findByIds(authorIds);\nconst authorMap = new Map(authors.map(a => [a.id, a]));\nposts.forEach(p => p.author = authorMap.get(p.authorId));",
+      "cwe": "CWE-1050: Excessive Platform Resource Consumption within a Loop"
+    },
+    {
+      "severity": "High",
+      "category": "Performance",
+      "issue_type": "N+1 Query Problem",
+      "description": "GET /posts/:id endpoint fetches comment authors in a loop, causing N+1 queries. For a post with 50 comments, this makes 51 queries (1 for comments + 50 for authors).",
+      "location": "benchmark_repo/src/routes/posts.ts:28-31",
+      "vulnerable_code": "for (const comment of comments) {\n  comment.author = await db.users.findById(comment.authorId);\n}",
+      "impact": "Slow page load for posts with many comments, increased database load",
+      "suggested_fix": "Use batch loading or JOIN:\n\nconst authorIds = [...new Set(comments.map(c => c.authorId))];\nconst authors = await db.users.findByIds(authorIds);\nconst authorMap = new Map(authors.map(a => [a.id, a]));\ncomments.forEach(c => c.author = authorMap.get(c.authorId));"
+    }
+  ],
+  "expected_tests": [
+    {
+      "test_type": "performance",
+      "description": "GET /posts should make only 2 queries regardless of post count",
+      "test_code": "it('fetches posts and authors efficiently', async () => {\n  await createPosts(100); // Create 100 posts\n  const queryCount = db.getQueryCount();\n  await request(app).get('/posts').expect(200);\n  const queriesExecuted = db.getQueryCount() - queryCount;\n  expect(queriesExecuted).toBeLessThanOrEqual(2); // 1 for posts, 1 for authors\n});"
+    },
+    {
+      "test_type": "integration",
+      "description": "GET /posts should include author data",
+      "test_code": "it('includes author data in response', async () => {\n  const author = await createUser({ name: 'Alice' });\n  await createPost({ title: 'Test', authorId: author.id });\n  const res = await request(app).get('/posts').expect(200);\n  expect(res.body[0].author).toMatchObject({ id: author.id, name: 'Alice' });\n});"
+    },
+    {
+      "test_type": "performance",
+      "description": "GET /posts/:id should batch-load comment authors",
+      "test_code": "it('fetches comment authors efficiently', async () => {\n  const post = await createPost({ title: 'Test' });\n  await createComments(50, { postId: post.id }); // 50 comments\n  const queryCount = db.getQueryCount();\n  await request(app).get(`/posts/${post.id}`).expect(200);\n  const queriesExecuted = db.getQueryCount() - queryCount;\n  expect(queriesExecuted).toBeLessThanOrEqual(3); // 1 post, 1 comments, 1 authors\n});"
+    }
+  ],
+  "related_files": [],
+  "concept_groups": [
+    ["n+1", "query performance", "database optimization", "loop query"],
+    ["join", "eager loading", "batch loading"],
+    ["performance", "scalability", "database load"]
+  ]
+}

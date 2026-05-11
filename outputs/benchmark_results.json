@@ -1,29 +1,20 @@
 [
   {
-    "case_id": "sql_injection",
-    "title": "Unsafe SQL interpolation in user lookup",
-    "baseline_score": 1.0,
-    "reviewstem_score": 1.0,
-    "fitness_score": 0.98,
-    "passes": 1,
-    "notes": "matched expected issue"
-  },
-  {
     "case_id": "admin_auth",
     "title": "Admin stats route without authorization",
-    "baseline_score": 0.83,
+    "baseline_score": 1.0,
+    "skilled_baseline_score": 1.0,
     "reviewstem_score": 1.0,
-    "fitness_score": 0.62,
-    "passes": 2,
-    "notes": "matched expected issue"
-  },
-  {
-    "case_id": "cache_invalidation",
-    "title": "User update leaves stale cache entry",
-    "baseline_score": 0.77,
-    "reviewstem_score": 0.85,
-    "fitness_score": 0.93,
+    "fitness_score": 0.9,
     "passes": 1,
-    "notes": "matched expected issue"
+    "baseline_calls": 1,
+    "skilled_baseline_calls": 1,
+    "reviewstem_calls": 14,
+    "requires_context": false,
+    "notes": "matched expected issue",
+    "issue_detected": true,
+    "grounding_score": 0.5,
+    "concept_score": 0.3,
+    "severity_score": 0.15
   }
 ]

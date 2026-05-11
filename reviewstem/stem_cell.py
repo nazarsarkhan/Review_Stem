@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 from .llm_client import LLMClient
-from .schemas import GenomeCluster, LearnedTrait
+from .schemas import GenomeCluster, LearnedTrait, SelectedSkill
 
 logger = logging.getLogger("ReviewStem")
 
@@ -15,7 +15,7 @@ class StemCell:
         self,
         repo_map: str,
         diff: str,
-        skills: List[LearnedTrait],
+        skills: List[LearnedTrait | SelectedSkill],
     ) -> GenomeCluster:
         """Analyze the PR environment and select specialized review personas."""
         logger.info("Selecting specialized reviewers based on PR context.")
@@ -39,10 +39,11 @@ Review Guidance:
 Instructions:
 1. Identify the core components modified (e.g., Database, UI, Security).
 2. For each major concern, spawn a specialized `ReviewGenome`.
-3. If review guidance is provided and its trigger matches the current PR, adopt its traits into the new genome's `specific_checks`.
+3. If selected skills are provided, copy relevant skill names into `source_skills`,
+   copy risk areas into `risk_profile`, and adopt concrete checklist/test items into `specific_checks`.
 4. Keep the cluster lean (1-3 genomes maximum).
 """
-        cluster = await self.llm.parse(prompt, schema=GenomeCluster)
+        cluster = await self.llm.parse(prompt, schema=GenomeCluster, stage="differentiate")
         logger.info("Selected %s specialized reviewers.", len(cluster.genomes))
         for genome in cluster.genomes:
             logger.info("  - Reviewer: %s", genome.persona_name)

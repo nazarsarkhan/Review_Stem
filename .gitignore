@@ -4,6 +4,7 @@
 improvement_history.csv
 evolution_graph_*.mmd
 temp_test_dir/
+.tmp_pytest/
 
 # Python
 __pycache__/
@@ -13,7 +14,31 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+.pytest_cache/
 
 # System
 .DS_Store
 Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+openspace_repo/
+
+# Claude Code
+.claude/
+
+# Internal documentation (not for submission)
+FINAL_REPORT.md
+SUBMISSION_CHECKLIST.md
+WRITEUP_DRAFT.md
+INTEGRATION_COMPLETE.md
+OPENSPACE_SUMMARY.md
+QUICKSTART_OPENSPACE.md
+docs/

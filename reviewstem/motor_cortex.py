@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .config import ReviewStemConfig
 from .llm_client import LLMClient
-from .schemas import ReviewGenome, ReviewOutput, StressTestProfile
+from .schemas import ReviewGenome, ReviewOutput, StressTestProfile, ToolUseEvent
 
 logger = logging.getLogger("ReviewStem")
 
@@ -25,12 +25,14 @@ class MotorCortex:
         self.config = config or llm.config
         self.repo_path = Path(repo_path).resolve()
         self.file_read_limit = self.config.file_read_limit
+        self.tool_events: list[ToolUseEvent] = []
 
     async def execute_draft_review(
         self,
         genome: ReviewGenome,
         diff: str,
         stress_profile: StressTestProfile,
+        iteration: int = 0,
     ) -> ReviewOutput:
         """Execute the initial draft review with targeted risk validation."""
         logger.info("Draft review: executing as '%s'.", genome.persona_name)
@@ -64,6 +66,7 @@ Risk areas to actively validate:
                     tools=tools,
                     tool_choice="auto",
                 )
+                self.llm._record_call("draft_review_tool_loop", response)
             except Exception as e:
                 logger.error("Draft review tool loop failed: %s", e)
                 break
@@ -75,7 +78,8 @@ Risk areas to actively validate:
                     if tool_call.function.name == "read_file":
                         args = json.loads(tool_call.function.arguments)
                         filepath = args.get("filepath", "")
-                        content = self._read_file(filepath)
+                        content, event = self._read_file_event(filepath, genome.persona_name, iteration)
+                        self.tool_events.append(event)
                         messages.append(
                             {
                                 "role": "tool",
@@ -92,6 +96,7 @@ Risk areas to actively validate:
             schema=ReviewOutput,
             system_prompt=system_prompt,
             messages=messages,
+            stage="draft_review_parse",
         )
         logger.info(
             "Draft review (%s) finished with %s comments.",
@@ -130,7 +135,7 @@ Instructions:
    A complete example is `await db.query('SELECT * FROM users WHERE name = $1', [name])`.
 6. Output your final ReviewOutput matching your specific domain constraints.
 """
-        final_output = await self.llm.parse(prompt, schema=ReviewOutput)
+        final_output = await self.llm.parse(prompt, schema=ReviewOutput, stage="peer_finalize")
         logger.info(
             "Final review (%s) finished with %s comments.",
             genome.persona_name,
@@ -139,14 +144,51 @@ Instructions:
         return final_output
 
     def _read_file(self, filepath: str) -> str:
+        return self._read_file_event(filepath, "unknown", 0)[0]
+
+    def _read_file_event(self, filepath: str, reviewer: str, iteration: int) -> tuple[str, ToolUseEvent]:
         full_path = (self.repo_path / filepath).resolve()
         try:
             full_path.relative_to(self.repo_path)
         except ValueError:
-            return "Error reading file: requested path is outside the repository."
+            error = "requested path is outside the repository"
+            return (
+                f"Error reading file: {error}.",
+                ToolUseEvent(
+                    iteration=iteration,
+                    reviewer=reviewer,
+                    tool_name="read_file",
+                    path=filepath,
+                    success=False,
+                    characters_returned=0,
+                    error=error,
+                ),
+            )
 
         try:
             content = full_path.read_text(encoding="utf-8")
-            return content[: self.file_read_limit]
+            clipped = content[: self.file_read_limit]
+            return (
+                clipped,
+                ToolUseEvent(
+                    iteration=iteration,
+                    reviewer=reviewer,
+                    tool_name="read_file",
+                    path=filepath,
+                    success=True,
+                    characters_returned=len(clipped),
+                ),
+            )
         except Exception as e:
-            return f"Error reading file: {e}"
+            return (
+                f"Error reading file: {e}",
+                ToolUseEvent(
+                    iteration=iteration,
+                    reviewer=reviewer,
+                    tool_name="read_file",
+                    path=filepath,
+                    success=False,
+                    characters_returned=0,
+                    error=str(e),
+                ),
+            )

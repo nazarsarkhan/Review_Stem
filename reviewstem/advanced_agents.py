@@ -22,7 +22,7 @@ class NeuralPruner:
         Current Genomes:
         {[g.model_dump_json() for g in cluster.genomes]}
         """
-        pruned_cluster = await self.llm.parse(prompt, schema=GenomeCluster)
+        pruned_cluster = await self.llm.parse(prompt, schema=GenomeCluster, stage="prune_reviewers")
         logger.info(
             "Reduced reviewer set from %s to %s.",
             len(cluster.genomes),
@@ -46,4 +46,4 @@ class StressTester:
         Genome: {genome.model_dump_json()}
         Diff: {diff}
         """
-        return await self.llm.parse(prompt, schema=StressTestProfile)
+        return await self.llm.parse(prompt, schema=StressTestProfile, stage="stress_profile")

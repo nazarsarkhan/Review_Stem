@@ -1,0 +1,578 @@
+{
+  "run_id": "sql_injection-561ff6a264",
+  "mode": "benchmark",
+  "case_id": "sql_injection",
+  "timestamp": "2026-05-11T15:13:59+00:00",
+  "target_score": 0.9,
+  "max_iterations": 1,
+  "model": "gpt-5.4",
+  "stop_reason": "target_score_met: 0.97 >= 0.90",
+  "environment": {
+    "changed_files": [
+      "src/db/users.ts"
+    ],
+    "diff_summary": "1 changed files, +1/-1, signals: database/query, async/error",
+    "repo_map_summary": "package.json\nREADME.md\n    src/\n        index.ts\n        cache/\n            accountCache.ts\n            redis.ts\n            userCache.ts\n        db/\n            index.ts\n            orders.ts\n            users.ts\n        middleware/\n            auth.ts\n        routes/\n            admin.ts\n            auth.ts\n            import.ts\n... (9 more entries)",
+    "selected_benchmark_case": "sql_injection",
+    "diff_was_real": true,
+    "repo_path": "C:\\Users\\nazar\\Desktop\\Uni\\Projects\\JB_internships\\Review_Stem\\benchmark_repo"
+  },
+  "selected_skills": [
+    {
+      "skill_name": "SQL Injection and Unsafe Query Construction Review",
+      "trigger_context": "Use when a PR modifies database access, raw SQL, query construction, search/filter/login endpoints, or user-controlled values in queries.",
+      "trait_instruction": "SQL injection through unsafe interpolation; Missing parameter binding for user-controlled values; Escaping or string formatting mistaken for parameterization; Sensitive data exposure through overly broad query behavior; Query construction that changes semantics for special characters; Does any SQL string interpolate request, route, form, or function parameters directly?; Are placeholders paired with complete argument arrays or query-builder bindings?; Does the fix avoid manual escaping as the primary defense?; Could wildcard, quote, comment, or boolean payloads alter query semantics?; Are tests proposed for malicious input and normal lookup behavior?; A lookup containing quotes or SQL comment syntax is treated as data and does not alter the query structure; The repository database mock verifies that user input is passed as a bound parameter; Normal search/filter behavior still returns expected records after parameterization",
+      "total_score": 23.23,
+      "matched_terms": [
+        "function",
+        "query",
+        "sql_injection",
+        "string"
+      ],
+      "matched_fields": {
+        "skill_name": [
+          "query"
+        ],
+        "trigger": [
+          "query"
+        ],
+        "risk_profile": [
+          "query",
+          "string"
+        ],
+        "context_plan": [
+          "query",
+          "string"
+        ],
+        "checklist": [
+          "function",
+          "query",
+          "string"
+        ],
+        "test_templates": [
+          "query"
+        ],
+        "source_case": [
+          "sql_injection"
+        ]
+      },
+      "reason": "Matched skill_name: query, trigger: query, risk_profile: query, string, context_plan: query, string, checklist: function, query, string, test_templates: query, source_case: sql_injection",
+      "source_case": "sql_injection",
+      "success_score": 0.9,
+      "fallback": false,
+      "risk_profile": [
+        "SQL injection through unsafe interpolation",
+        "Missing parameter binding for user-controlled values",
+        "Escaping or string formatting mistaken for parameterization",
+        "Sensitive data exposure through overly broad query behavior",
+        "Query construction that changes semantics for special characters"
+      ],
+      "context_plan": [
+        "Inspect changed database access code and identify all user-controlled values that reach a query",
+        "Compare unsafe string construction with existing parameterized query patterns in the repository",
+        "Check whether the suggested fix binds every dynamic value through placeholders or query builder parameters",
+        "Look for search, filter, login, and lookup paths where attacker-controlled input can affect SQL structure"
+      ],
+      "checklist": [
+        "Does any SQL string interpolate request, route, form, or function parameters directly?",
+        "Are placeholders paired with complete argument arrays or query-builder bindings?",
+        "Does the fix avoid manual escaping as the primary defense?",
+        "Could wildcard, quote, comment, or boolean payloads alter query semantics?",
+        "Are tests proposed for malicious input and normal lookup behavior?"
+      ],
+      "test_templates": [
+        "A lookup containing quotes or SQL comment syntax is treated as data and does not alter the query structure",
+        "The repository database mock verifies that user input is passed as a bound parameter",
+        "Normal search/filter behavior still returns expected records after parameterization"
+      ]
+    },
+    {
+      "skill_name": "Backend API Swallowed Error Review",
+      "trigger_context": "Use when a PR modifies backend/API route handlers, import/process endpoints, try/catch blocks, async control flow, promise handling, or response emission.",
+      "trait_instruction": "Caught exceptions ignored; Async errors not awaited or returned; False 2xx success response after failure; Logging without propagation; Partial side effects before failure; Missing negative-path tests; Can execution continue to a success response after a caught exception?; Are downstream async operations awaited or returned?; Is logging used in addition to propagation rather than as a substitute?; Do partial side effects have explicit failure semantics?; Are negative-path tests present for thrown and rejected failures?; The route returns a non-2xx response when the service throws; The route does not emit success before required async work completes; Rejected promises are propagated to error handling; Caught failures are logged and still represented in the HTTP response",
+      "total_score": 15.03,
+      "matched_terms": [
+        "async",
+        "import",
+        "middleware",
+        "return"
+      ],
+      "matched_fields": {
+        "trigger": [
+          "async",
+          "import"
+        ],
+        "risk_profile": [
+          "async"
+        ],
+        "context_plan": [
+          "async",
+          "middleware",
+          "return"
+        ],
+        "checklist": [
+          "async"
+        ],
+        "test_templates": [
+          "async"
+        ]
+      },
+      "reason": "Matched trigger: async, import, risk_profile: async, context_plan: async, middleware, return, checklist: async, test_templates: async",
+      "source_case": "async_swallowed_error",
+      "success_score": 0.9,
+      "fallback": false,
+      "risk_profile": [
+        "Caught exceptions ignored",
+        "Async errors not awaited or returned",
+        "False 2xx success response after failure",
+        "Logging without propagation",
+        "Partial side effects before failure",
+        "Missing negative-path tests"
+      ],
+      "context_plan": [
+        "Trace route control flow from request validation through response emission",
+        "Inspect try/catch blocks and promise chains for swallowed failures",
+        "Verify caught errors return non-2xx responses, rethrow, or call error middleware",
+        "Check whether async work is awaited before success is sent",
+        "Review tests for thrown and rejected downstream failures"
+      ],
+      "checklist": [
+        "Can execution continue to a success response after a caught exception?",
+        "Are downstream async operations awaited or returned?",
+        "Is logging used in addition to propagation rather than as a substitute?",
+        "Do partial side effects have explicit failure semantics?",
+        "Are negative-path tests present for thrown and rejected failures?"
+      ],
+      "test_templates": [
+        "The route returns a non-2xx response when the service throws",
+        "The route does not emit success before required async work completes",
+        "Rejected promises are propagated to error handling",
+        "Caught failures are logged and still represented in the HTTP response"
+      ]
+    },
+    {
+      "skill_name": "Low-Context PR Triage and Repository Validation",
+      "trigger_context": "Use when PR review input lacks a real diff, changed-file context, repository metadata, title, description, or uses placeholder/mock content.",
+      "trait_instruction": "Missing diff prevents semantic review; Placeholder diff can cause speculative findings; Missing changed files blocks impact analysis; Missing PR metadata obscures intended behavior; Repository extraction failures can create misleading review conditions; Is there a real unified diff with changed files?; Are changed files accessible in the repository?; Is PR intent described by title, description, or equivalent metadata?; Are review limitations explicitly stated instead of inventing findings?; Is the minimum missing context requested?; Placeholder or empty diffs produce triage-only review output; Missing file context suppresses code-specific findings; Repository access failures are surfaced as process blockers",
+      "total_score": 9.21,
+      "matched_terms": [
+        "diff"
+      ],
+      "matched_fields": {
+        "trigger": [
+          "diff"
+        ],
+        "risk_profile": [
+          "diff"
+        ],
+        "context_plan": [
+          "diff"
+        ],
+        "checklist": [
+          "diff"
+        ]
+      },
+      "reason": "Matched trigger: diff, risk_profile: diff, context_plan: diff, checklist: diff",
+      "source_case": "low_context",
+      "success_score": 0.84,
+      "fallback": false,
+      "risk_profile": [
+        "Missing diff prevents semantic review",
+        "Placeholder diff can cause speculative findings",
+        "Missing changed files blocks impact analysis",
+        "Missing PR metadata obscures intended behavior",
+        "Repository extraction failures can create misleading review conditions"
+      ],
+      "context_plan": [
+        "Validate whether the diff is real and the changed files are accessible",
+        "Request PR title, description, changed files, and file contents when missing",
+        "Avoid file-specific findings until concrete source evidence is available",
+        "Defer correctness, security, performance, and test assessment until source context exists"
+      ],
+      "checklist": [
+        "Is there a real unified diff with changed files?",
+        "Are changed files accessible in the repository?",
+        "Is PR intent described by title, description, or equivalent metadata?",
+        "Are review limitations explicitly stated instead of inventing findings?",
+        "Is the minimum missing context requested?"
+      ],
+      "test_templates": [
+        "Placeholder or empty diffs produce triage-only review output",
+        "Missing file context suppresses code-specific findings",
+        "Repository access failures are surfaced as process blockers"
+      ]
+    },
+    {
+      "skill_name": "Cache Invalidation Audit for Update-Path Stale-Read Bugs",
+      "trigger_context": "Use when a PR changes cache behavior, cached reads, mutation paths, update flows, or cache key construction.",
+      "trait_instruction": "Stale cache after successful update; Read and write cache key mismatch; Missing invalidation after mutation; Asymmetric create, update, and delete cache behavior; Missing read-update-read regression tests; Does the update path invalidate or refresh the same key used by cached reads?; Can a read immediately after update return stale pre-update data?; Are create, update, and delete paths consistent in cache handling?; Do error and retry branches avoid mixed stale state?; Is there a read-update-read regression test?; Cache a record, update it, then read again and assert the updated value is returned; Verify the invalidation key exactly matches the read cache key; Repeated updates followed by reads always return the latest persisted value",
+      "total_score": 7.33,
+      "matched_terms": [
+        "cache",
+        "diff",
+        "return"
+      ],
+      "matched_fields": {
+        "skill_name": [
+          "cache"
+        ],
+        "trigger": [
+          "cache"
+        ],
+        "risk_profile": [
+          "cache"
+        ],
+        "context_plan": [
+          "cache",
+          "diff"
+        ],
+        "checklist": [
+          "cache",
+          "return"
+        ],
+        "test_templates": [
+          "cache",
+          "return"
+        ]
+      },
+      "reason": "Matched skill_name: cache, trigger: cache, risk_profile: cache, context_plan: cache, diff, checklist: cache, return, test_templates: cache, return",
+      "source_case": "cache_invalidation",
+      "success_score": 0.9,
+      "fallback": false,
+      "risk_profile": [
+        "Stale cache after successful update",
+        "Read and write cache key mismatch",
+        "Missing invalidation after mutation",
+        "Asymmetric create, update, and delete cache behavior",
+        "Missing read-update-read regression tests"
+      ],
+      "context_plan": [
+        "Trace read-path cache key construction and update-path invalidation key construction",
+        "Verify every successful update invalidates, refreshes, or overwrites the exact key later served by reads",
+        "Compare create, update, and delete behavior for cache coherence symmetry",
+        "Read surrounding cache helpers when the diff only shows one side of the read/write flow"
+      ],
+      "checklist": [
+        "Does the update path invalidate or refresh the same key used by cached reads?",
+        "Can a read immediately after update return stale pre-update data?",
+        "Are create, update, and delete paths consistent in cache handling?",
+        "Do error and retry branches avoid mixed stale state?",
+        "Is there a read-update-read regression test?"
+      ],
+      "test_templates": [
+        "Cache a record, update it, then read again and assert the updated value is returned",
+        "Verify the invalidation key exactly matches the read cache key",
+        "Repeated updates followed by reads always return the latest persisted value"
+      ]
+    },
+    {
+      "skill_name": "Admin Route Authentication/Authorization Review",
+      "trigger_context": "Use when a PR modifies admin or privileged backend/API routes, route mounting, middleware ordering, or authorization behavior.",
+      "trait_instruction": "Missing authentication on privileged routes; Missing admin authorization checks; Privilege escalation through inconsistent role checks; Middleware ordering that leaves handlers reachable before auth; Route mounting bypass through alternate unprotected paths; Missing 401 and 403 regression tests; Is authentication enforced before the privileged handler runs?; Is admin or equivalent role authorization enforced after authentication?; Could route mounting or middleware order expose the route through an unprotected path?; Are all methods and subroutes covered by the same protection?; Are negative-path tests present for 401 and 403 behavior?; Unauthenticated requests to the admin endpoint are denied; Authenticated non-admin requests to the admin endpoint are denied; Authenticated admin requests succeed; Alternate mount paths and HTTP methods cannot bypass middleware",
+      "total_score": 6.42,
+      "matched_terms": [
+        "admin",
+        "auth",
+        "middleware",
+        "routes"
+      ],
+      "matched_fields": {
+        "skill_name": [
+          "admin"
+        ],
+        "trigger": [
+          "admin",
+          "middleware",
+          "routes"
+        ],
+        "risk_profile": [
+          "admin",
+          "auth",
+          "middleware",
+          "routes"
+        ],
+        "context_plan": [
+          "admin",
+          "middleware"
+        ],
+        "checklist": [
+          "admin",
+          "middleware"
+        ],
+        "test_templates": [
+          "admin",
+          "middleware"
+        ]
+      },
+      "reason": "Matched skill_name: admin, trigger: admin, middleware, routes, risk_profile: admin, auth, middleware, routes, context_plan: admin, middleware, checklist: admin, middleware, test_templates: admin, middleware",
+      "source_case": "admin_auth",
+      "success_score": 0.88,
+      "fallback": false,
+      "risk_profile": [
+        "Missing authentication on privileged routes",
+        "Missing admin authorization checks",
+        "Privilege escalation through inconsistent role checks",
+        "Middleware ordering that leaves handlers reachable before auth",
+        "Route mounting bypass through alternate unprotected paths",
+        "Missing 401 and 403 regression tests"
+      ],
+      "context_plan": [
+        "Inspect changed route handlers for authentication and role checks",
+        "Read router mounting or application setup files when route protection may be applied outside the handler",
+        "Compare with established protected-route patterns elsewhere in the repository",
+        "Check middleware order and alternate mount paths before assuming global protection applies",
+        "Review tests for unauthenticated, non-admin, and admin outcomes"
+      ],
+      "checklist": [
+        "Is authentication enforced before the privileged handler runs?",
+        "Is admin or equivalent role authorization enforced after authentication?",
+        "Could route mounting or middleware order expose the route through an unprotected path?",
+        "Are all methods and subroutes covered by the same protection?",
+        "Are negative-path tests present for 401 and 403 behavior?"
+      ],
+      "test_templates": [
+        "Unauthenticated requests to the admin endpoint are denied",
+        "Authenticated non-admin requests to the admin endpoint are denied",
+        "Authenticated admin requests succeed",
+        "Alternate mount paths and HTTP methods cannot bypass middleware"
+      ]
+    }
+  ],
+  "initial_reviewer_genomes": [
+    {
+      "persona_name": "SQL Injection Database Access Reviewer",
+      "focus_areas": [
+        "Database query construction in src/db/users.ts",
+        "User-controlled input handling in SQL lookups",
+        "Regression risk from replacing parameterized queries with string interpolation",
+        "Security test coverage for malicious and normal-name lookups"
+      ],
+      "specific_checks": [
+        "Does any SQL string interpolate request, route, form, or function parameters directly?",
+        "Are placeholders paired with complete argument arrays or query-builder bindings?",
+        "Does the fix avoid manual escaping as the primary defense?",
+        "Could wildcard, quote, comment, or boolean payloads alter query semantics?",
+        "Are tests proposed for malicious input and normal lookup behavior?",
+        "Verify getUserByName treats names containing quotes or SQL comment syntax as data rather than query structure",
+        "Confirm the database layer or mocks assert bound-parameter usage for user input"
+      ],
+      "source_skills": [
+        "SQL Injection and Unsafe Query Construction Review"
+      ],
+      "risk_profile": [
+        "SQL injection through unsafe interpolation",
+        "Missing parameter binding for user-controlled values",
+        "Escaping or string formatting mistaken for parameterization",
+        "Sensitive data exposure through overly broad query behavior",
+        "Query construction that changes semantics for special characters"
+      ]
+    },
+    {
+      "persona_name": "Data Access Correctness and Contract Reviewer",
+      "focus_areas": [
+        "Behavioral correctness of getUserByName after query change",
+        "Compatibility with the project's db.query calling convention",
+        "Impact on callers in routes/services that rely on exact single-user lookup semantics",
+        "Need for regression tests in tests/users.test.ts or adjacent DB tests"
+      ],
+      "specific_checks": [
+        "Compare the changed db.query invocation with established parameterized patterns elsewhere in the repository",
+        "Verify the SQL still preserves exact lookup semantics for names containing apostrophes or special characters",
+        "Check whether the changed call shape matches the expected database adapter contract and return structure",
+        "Ensure normal lookup behavior still returns the expected record after restoring parameterization",
+        "Add regression coverage for both valid names and malicious payload-like names"
+      ],
+      "source_skills": [
+        "SQL Injection and Unsafe Query Construction Review"
+      ],
+      "risk_profile": [
+        "Query construction that changes semantics for special characters",
+        "Sensitive data exposure through overly broad query behavior",
+        "Missing parameter binding for user-controlled values"
+      ]
+    }
+  ],
+  "reviewer_skill_map": {
+    "SQL Injection Database Access Reviewer": [
+      "SQL Injection and Unsafe Query Construction Review"
+    ],
+    "Data Access Correctness and Contract Reviewer": [
+      "SQL Injection and Unsafe Query Construction Review"
+    ]
+  },
+  "tool_use": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "reviewer_architecture_before": [
+        {
+          "persona_name": "SQL Injection Database Access Reviewer",
+          "focus_areas": [
+            "Database query construction in src/db/users.ts",
+            "User-controlled input handling in SQL lookups",
+            "Regression risk from replacing parameterized queries with string interpolation",
+            "Security test coverage for malicious and normal-name lookups"
+          ],
+          "specific_checks": [
+            "Does any SQL string interpolate request, route, form, or function parameters directly?",
+            "Are placeholders paired with complete argument arrays or query-builder bindings?",
+            "Does the fix avoid manual escaping as the primary defense?",
+            "Could wildcard, quote, comment, or boolean payloads alter query semantics?",
+            "Are tests proposed for malicious input and normal lookup behavior?",
+            "Verify getUserByName treats names containing quotes or SQL comment syntax as data rather than query structure",
+            "Confirm the database layer or mocks assert bound-parameter usage for user input"
+          ],
+          "source_skills": [
+            "SQL Injection and Unsafe Query Construction Review"
+          ],
+          "risk_profile": [
+            "SQL injection through unsafe interpolation",
+            "Missing parameter binding for user-controlled values",
+            "Escaping or string formatting mistaken for parameterization",
+            "Sensitive data exposure through overly broad query behavior",
+            "Query construction that changes semantics for special characters"
+          ]
+        },
+        {
+          "persona_name": "Data Access Correctness and Contract Reviewer",
+          "focus_areas": [
+            "Behavioral correctness of getUserByName after query change",
+            "Compatibility with the project's db.query calling convention",
+            "Impact on callers in routes/services that rely on exact single-user lookup semantics",
+            "Need for regression tests in tests/users.test.ts or adjacent DB tests"
+          ],
+          "specific_checks": [
+            "Compare the changed db.query invocation with established parameterized patterns elsewhere in the repository",
+            "Verify the SQL still preserves exact lookup semantics for names containing apostrophes or special characters",
+            "Check whether the changed call shape matches the expected database adapter contract and return structure",
+            "Ensure normal lookup behavior still returns the expected record after restoring parameterization",
+            "Add regression coverage for both valid names and malicious payload-like names"
+          ],
+          "source_skills": [
+            "SQL Injection and Unsafe Query Construction Review"
+          ],
+          "risk_profile": [
+            "Query construction that changes semantics for special characters",
+            "Sensitive data exposure through overly broad query behavior",
+            "Missing parameter binding for user-controlled values"
+          ]
+        }
+      ],
+      "pruned_reviewer_architecture": [
+        {
+          "persona_name": "SQL Injection and DB Query Contract Reviewer",
+          "focus_areas": [
+            "Database query construction in src/db/users.ts",
+            "User-controlled input handling in SQL lookups",
+            "Regression risk from replacing parameterized queries with string interpolation",
+            "Compatibility with the project's db.query calling convention",
+            "Behavioral correctness of getUserByName and exact single-user lookup semantics",
+            "Security and regression test coverage for malicious and normal-name lookups"
+          ],
+          "specific_checks": [
+            "Does any SQL string interpolate request, route, form, or function parameters directly?",
+            "Are placeholders paired with complete argument arrays or query-builder bindings?",
+            "Does the fix avoid manual escaping as the primary defense?",
+            "Could wildcard, quote, comment, or boolean payloads alter query semantics?",
+            "Compare the changed db.query invocation with established parameterized patterns elsewhere in the repository.",
+            "Check whether the changed call shape matches the expected database adapter contract and return structure.",
+            "Verify getUserByName treats names containing quotes or SQL comment syntax as data rather than query structure.",
+            "Ensure the SQL still preserves exact lookup semantics for names containing apostrophes or special characters.",
+            "Confirm the database layer or mocks assert bound-parameter usage for user input.",
+            "Ensure normal lookup behavior still returns the expected record after restoring parameterization.",
+            "Add regression coverage for both valid names and malicious payload-like names."
+          ],
+          "source_skills": [
+            "SQL Injection and Unsafe Query Construction Review"
+          ],
+          "risk_profile": [
+            "SQL injection through unsafe interpolation",
+            "Missing parameter binding for user-controlled values",
+            "Escaping or string formatting mistaken for parameterization",
+            "Query construction that changes semantics for special characters",
+            "Sensitive data exposure through overly broad query behavior"
+          ]
+        }
+      ],
+      "stress_profiles": {
+        "SQL Injection and DB Query Contract Reviewer": {
+          "hypothetical_bugs": [
+            "SQL injection in getUserByName because user-controlled `name` is directly interpolated into the SQL string, allowing payloads like `' OR 1=1 --` to alter query semantics and potentially return arbitrary users.",
+            "Behavioral regression for legitimate names containing apostrophes or SQL-significant characters (for example `O'Brien`), causing malformed SQL, failed lookups, or incorrect exact-match behavior instead of treating the input as data.",
+            "Database adapter contract regression: `db.query` was changed from the established parameterized call shape `db.query(sql, [params])` to a single raw SQL string, which may bypass bound-parameter handling expected by the adapter/mocks/tests and break security or result-shape assumptions."
+          ]
+        }
+      },
+      "draft_review_summaries": {
+        "SQL Injection and DB Query Contract Reviewer": "1 comments (High:1). This change introduces a clear SQL injection vulnerability and a behavioral regression in `getUserByName` by replacing a parameterized query with raw string interpolation. It also risks breaking the expected `db.query(sq"
+      },
+      "peer_finalized_review_summaries": {
+        "SQL Injection and DB Query Contract Reviewer": "1 comments (High:1). The reviewed change introduces a SQL injection vulnerability in `getUserByName` by replacing parameter binding with raw string interpolation. It also risks violating the expected `db.query(sql, params)` contract and caus"
+      },
+      "final_synthesized_review_summary": "1 comments (High:1). The reviewed change introduces a high-severity security regression in `src/db/users.ts` by replacing parameter binding with raw SQL interpolation in `getUserByName`. This creates a SQL injection risk and also causes inco",
+      "fitness_score": 0.97,
+      "deterministic_penalties": [],
+      "evaluator_comments": "This is a strong review: it identifies a real high-severity issue, explains the impact clearly, points to the exact location, and gives a concrete, correct fix with useful regression-test suggestions. The only minor gap is that it assumes the surrounding code/context confirms raw interpolation at line 4; if you wanted to be even stronger, you could quote the exact vulnerable query shape or mention whether any existing escaping/helper layer is bypassed.",
+      "mutation_applied": false,
+      "mutation_reason": "",
+      "mutation_delta": null
+    }
+  ],
+  "outputs": {
+    "llm_call_count": 8,
+    "llm_calls": [
+      {
+        "stage": "differentiate",
+        "prompt_tokens": 3203,
+        "completion_tokens": 425,
+        "total_tokens": 3628
+      },
+      {
+        "stage": "prune_reviewers",
+        "prompt_tokens": 748,
+        "completion_tokens": 328,
+        "total_tokens": 1076
+      },
+      {
+        "stage": "stress_profile",
+        "prompt_tokens": 575,
+        "completion_tokens": 162,
+        "total_tokens": 737
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 896,
+        "completion_tokens": 571,
+        "total_tokens": 1467
+      },
+      {
+        "stage": "draft_review_parse",
+        "prompt_tokens": 988,
+        "completion_tokens": 282,
+        "total_tokens": 1270
+      },
+      {
+        "stage": "peer_finalize",
+        "prompt_tokens": 717,
+        "completion_tokens": 272,
+        "total_tokens": 989
+      },
+      {
+        "stage": "synthesize_review",
+        "prompt_tokens": 790,
+        "completion_tokens": 254,
+        "total_tokens": 1044
+      },
+      {
+        "stage": "fitness_evaluate",
+        "prompt_tokens": 485,
+        "completion_tokens": 104,
+        "total_tokens": 589
+      }
+    ],
+    "score_history": [
+      0.97
+    ],
+    "final_comment_count": 1
+  }
+}

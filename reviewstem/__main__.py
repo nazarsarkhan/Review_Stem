@@ -29,7 +29,23 @@ from .immune_system import ImmuneSystem
 from .llm_client import LLMClient
 from .motor_cortex import MotorCortex
 from .mutation_engine import MutationEngine
-from .schemas import EvaluationScore, GenomeCluster, LearnedTrait, ReviewOutput
+from .openspace_integration import (
+    ReviewStemSkillEngine,
+    ReviewStemExecutionAnalyzer,
+    ReviewStemEvolutionEngine,
+)
+from .schemas import EvaluationScore, GenomeCluster, IterationTrace, ReviewOutput, SelectedSkill, SpecializationState
+from .state import (
+    compare_genomes,
+    extract_changed_files,
+    infer_reviewer_skill_map,
+    new_run_id,
+    summarize_diff,
+    summarize_repo_map,
+    summarize_review,
+    utc_timestamp,
+    write_specialization_state,
+)
 from .stem_cell import StemCell
 from .utils import log_review_scores
 from .visualizer import ReviewVisualizer
@@ -78,16 +94,36 @@ def get_git_diff(config: ReviewStemConfig) -> tuple[str, bool]:
         return get_benchmark_case("sql_injection").diff, True
 
 
-def load_review_guidance(diff: str, root: Path) -> list[LearnedTrait]:
-    """Load reusable review guidance for the current diff."""
+def load_review_guidance(diff: str, root: Path, repo_signals: str = "", case_id: str | None = None, llm: Optional[LLMClient] = None) -> list[SelectedSkill]:
+    """Load reusable review guidance for the current diff using OpenSpace."""
+    # Try OpenSpace first
+    openspace_skills_dir = root / "skills" / "openspace"
+    if openspace_skills_dir.exists() and llm:
+        try:
+            skill_engine = ReviewStemSkillEngine(
+                skill_dirs=[openspace_skills_dir],
+                llm=llm
+            )
+            relevant = skill_engine.retrieve_skills(diff, repo_signals, case_id)
+            if relevant:
+                logger.info("OpenSpace: Retrieved %d skills with quality metrics", len(relevant))
+                return relevant
+        except Exception as e:
+            logger.warning("OpenSpace skill retrieval failed, falling back to Epigenetics: %s", e)
+
+    # Fallback to old Epigenetics
     skill_memory = Epigenetics(str(root / "skills" / "skills.json"))
-    relevant = skill_memory.retrieve_relevant_skills(diff)
+    relevant = skill_memory.retrieve_selected_skills(diff, repo_signals=repo_signals, case_id=case_id)
     if relevant:
         return relevant
     return [
-        LearnedTrait(
-            trigger_context="Database or SQL query modifications",
-            trait_instruction="Always check for SQL injection by verifying parameterization. Never trust string interpolation.",
+        SelectedSkill(
+            skill_name="Generic Evidence-Grounded PR Review",
+            trigger_context="No specific skill matched the diff or repository signals.",
+            trait_instruction="Ground every finding in changed code, inspect files when context is missing, avoid speculation, and require concrete fixes for high-risk findings.",
+            total_score=0.0,
+            reason="Fallback selected because no deterministic skill score was positive.",
+            fallback=True,
         )
     ]
 
@@ -97,34 +133,83 @@ async def run_review_pipeline(
     repo_path: Path,
     config: ReviewStemConfig,
     case_name: str,
+    mode: str = "review",
+    fallback_diff: bool = False,
     persist_outputs: bool = True,
-) -> tuple[ReviewOutput, EvaluationScore, list[float]]:
+) -> tuple[ReviewOutput, EvaluationScore, list[float], SpecializationState]:
     """Run the full ReviewStem specialization and review pipeline."""
     llm = LLMClient(config)
     stem = StemCell(llm)
     motor = MotorCortex(llm, repo_path=str(repo_path), config=config)
     immune = ImmuneSystem(llm)
-    fitness = FitnessFunction(llm, repo_path=str(repo_path))
     mutation = MutationEngine(llm)
     pruner = NeuralPruner(llm)
     stress_tester = StressTester(llm)
 
     repo_map = Hippocampus.generate_repo_map(str(repo_path), max_files=config.repo_map_max_files)
-    skills = load_review_guidance(diff, Path.cwd())
+    changed_files = extract_changed_files(diff)
+    fitness = FitnessFunction(llm, repo_path=str(repo_path), changed_files=changed_files)
+    skills = load_review_guidance(diff, Path.cwd(), repo_signals=repo_map, case_id=case_name, llm=llm)
+
+    # Initialize OpenSpace components for skill learning
+    openspace_skills_dir = Path.cwd() / "skills" / "openspace"
+    skill_engine = None
+    execution_analyzer = None
+    evolution_engine = None
+
+    if openspace_skills_dir.exists():
+        try:
+            skill_engine = ReviewStemSkillEngine(
+                skill_dirs=[openspace_skills_dir],
+                llm=llm
+            )
+            await skill_engine.sync_skills()
+            execution_analyzer = ReviewStemExecutionAnalyzer(skill_engine.store)
+            evolution_engine = ReviewStemEvolutionEngine(
+                store=skill_engine.store,
+                registry=skill_engine.registry,
+                llm=llm
+            )
+            logger.info("OpenSpace skill learning enabled")
+        except Exception as e:
+            logger.warning("OpenSpace initialization failed: %s", e)
+
+    state = SpecializationState(
+        run_id=new_run_id(case_name),
+        mode="benchmark" if mode == "benchmark" else "review",
+        case_id=case_name if mode == "benchmark" else None,
+        timestamp=utc_timestamp(),
+        target_score=config.target_score,
+        max_iterations=config.max_iterations,
+        model=config.model,
+        environment={
+            "changed_files": changed_files,
+            "diff_summary": summarize_diff(diff),
+            "repo_map_summary": summarize_repo_map(repo_map),
+            "selected_benchmark_case": case_name if fallback_diff or mode == "benchmark" else None,
+            "diff_was_real": not fallback_diff,
+            "repo_path": str(repo_path),
+        },
+        selected_skills=skills,
+    )
     if not config.quiet:
         console.print("[yellow]Loaded review guidance.[/yellow]")
 
     cluster = await stem.differentiate(repo_map, diff, skills)
     current_genomes = cluster.genomes
+    state.initial_reviewer_genomes = current_genomes
+    state.reviewer_skill_map = infer_reviewer_skill_map(current_genomes, skills)
     all_generations = [current_genomes[0]] if current_genomes else []
     final_review: ReviewOutput | None = None
     evaluation: EvaluationScore | None = None
     scores: list[float] = []
+    evolved_skills_list = []
 
     for iteration in range(1, config.max_iterations + 1):
         if not config.quiet:
             console.print(f"\n[bold yellow]Pass {iteration}: {len(current_genomes)} specialized reviewers active[/bold yellow]")
 
+        architecture_before = list(current_genomes)
         pruned_cluster = await pruner.prune(GenomeCluster(genomes=current_genomes))
         current_genomes = pruned_cluster.genomes
         stress_profiles = await asyncio.gather(
@@ -132,7 +217,7 @@ async def run_review_pipeline(
         )
         draft_reviews = await asyncio.gather(
             *[
-                motor.execute_draft_review(genome, diff, profile)
+                motor.execute_draft_review(genome, diff, profile, iteration=iteration)
                 for genome, profile in zip(current_genomes, stress_profiles)
             ]
         )
@@ -147,21 +232,90 @@ async def run_review_pipeline(
         evaluation = await fitness.evaluate(final_review)
         scores.append(evaluation.score)
 
+        # OpenSpace: Analyze execution for skill learning
+        execution_analysis = None
+        if execution_analyzer and skill_engine:
+            try:
+                execution_analysis = execution_analyzer.analyze_review_execution(
+                    run_id=state.run_id,
+                    selected_skills=skills,
+                    review_output=final_review,
+                    fitness_score=evaluation.score,
+                    deterministic_penalties=fitness.last_penalties,
+                    target_score=config.target_score
+                )
+                logger.info("Execution analysis: success=%s, candidate_for_evolution=%s",
+                           execution_analysis.overall_success,
+                           execution_analysis.candidate_for_evolution)
+            except Exception as e:
+                logger.warning("Execution analysis failed: %s", e)
+
+        iteration_trace = IterationTrace(
+            iteration=iteration,
+            reviewer_architecture_before=architecture_before,
+            pruned_reviewer_architecture=current_genomes,
+            stress_profiles={
+                genome.persona_name: profile for genome, profile in zip(current_genomes, stress_profiles)
+            },
+            draft_review_summaries={
+                genome.persona_name: summarize_review(review)
+                for genome, review in zip(current_genomes, draft_reviews)
+            },
+            peer_finalized_review_summaries={
+                genome.persona_name: summarize_review(review)
+                for genome, review in zip(current_genomes, finalized_reviews)
+            },
+            final_synthesized_review_summary=summarize_review(final_review),
+            fitness_score=evaluation.score,
+            deterministic_penalties=fitness.last_penalties,
+            evaluator_comments=evaluation.feedback,
+        )
+
         if not config.quiet:
             console.print(f"  [bold cyan]Fitness Score: {evaluation.score:.2f}[/bold cyan]")
 
         if evaluation.score >= config.target_score:
+            state.stop_reason = f"target_score_met: {evaluation.score:.2f} >= {config.target_score:.2f}"
+            state.iterations.append(iteration_trace)
             if not config.quiet:
                 console.print("  [green]Quality threshold met.[/green]")
             break
 
         if iteration < config.max_iterations:
+            old_genomes = list(current_genomes)
             cluster = await mutation.evolve(current_genomes, final_review, evaluation)
             current_genomes = cluster.genomes
+            iteration_trace.mutation_applied = True
+            iteration_trace.mutation_reason = (
+                f"Fitness {evaluation.score:.2f} below target {config.target_score:.2f}. "
+                f"Evaluator feedback: {evaluation.feedback}"
+            )
+            iteration_trace.mutation_delta = compare_genomes(old_genomes, current_genomes)
+
+            # OpenSpace: Evolve skills if needed
+            if execution_analysis and execution_analysis.candidate_for_evolution and evolution_engine:
+                try:
+                    evolved_skills = await evolution_engine.evolve_skills(
+                        analysis=execution_analysis,
+                        review_output=final_review,
+                        deterministic_penalties=fitness.last_penalties
+                    )
+                    if evolved_skills:
+                        evolved_skills_list.extend(evolved_skills)
+                        logger.info("Evolved %d skills in iteration %d", len(evolved_skills), iteration)
+                        if not config.quiet:
+                            console.print(f"  [magenta]Evolved {len(evolved_skills)} skills[/magenta]")
+                except Exception as e:
+                    logger.warning("Skill evolution failed: %s", e)
+
+            state.iterations.append(iteration_trace)
             if current_genomes:
                 all_generations.append(current_genomes[0])
-        elif not config.quiet:
-            console.print("  [red]Maximum iterations reached.[/red]")
+        else:
+            state.stop_reason = f"max_iterations_reached: {config.max_iterations}"
+            state.iterations.append(iteration_trace)
+            if not config.quiet:
+                console.print("  [red]Maximum iterations reached.[/red]")
 
     if not final_review or not evaluation:
         raise RuntimeError("ReviewStem did not produce a final review.")
@@ -170,10 +324,28 @@ async def run_review_pipeline(
         ReviewVisualizer.generate_evolution_diagram(case_name, all_generations)
         log_review_scores(case_name, scores[0], scores[-1], len(scores))
 
-    return final_review, evaluation, scores
+    state.tool_use = motor.tool_events
+    state.outputs = {
+        "llm_call_count": llm.call_count,
+        "llm_calls": llm.call_log,
+        "score_history": scores,
+        "final_comment_count": len(final_review.comments),
+    }
+
+    # Add evolved skills to state
+    if evolved_skills_list:
+        state.outputs["evolved_skills"] = evolved_skills_list
+
+    write_specialization_state(
+        state,
+        Path("outputs"),
+        case_id=case_name if mode == "benchmark" else None,
+    )
+
+    return final_review, evaluation, scores, state
 
 
-async def run_baseline_review(diff: str, repo_path: Path, config: ReviewStemConfig) -> ReviewOutput:
+async def run_baseline_review(diff: str, repo_path: Path, config: ReviewStemConfig) -> tuple[ReviewOutput, int]:
     """Run a generic single-prompt baseline review."""
     llm = LLMClient(config)
     repo_map = Hippocampus.generate_repo_map(str(repo_path), max_files=config.repo_map_max_files)
@@ -188,7 +360,38 @@ Diff:
 
 Return specific file paths, exact 1-based line numbers, severity, issue descriptions, and complete suggested fixes.
 """
-    return await llm.parse(prompt, schema=ReviewOutput)
+    review = await llm.parse(prompt, schema=ReviewOutput, stage="generic_baseline")
+    return review, llm.call_count
+
+
+async def run_skilled_baseline_review(
+    diff: str,
+    repo_path: Path,
+    config: ReviewStemConfig,
+    case_id: str | None = None,
+) -> tuple[ReviewOutput, int]:
+    """Run a single generic reviewer with selected skill text but no specialization loop."""
+    llm = LLMClient(config)
+    repo_map = Hippocampus.generate_repo_map(str(repo_path), max_files=config.repo_map_max_files)
+    skills = load_review_guidance(diff, Path.cwd(), repo_signals=repo_map, case_id=case_id)
+    skill_text = "\n".join(skill.model_dump_json() for skill in skills)
+    prompt = f"""
+You are a general-purpose code reviewer. Use the selected review skills below, but do not create
+specialized reviewers, peer review, mutation, or iterative fitness loops.
+
+Selected Skills:
+{skill_text}
+
+Repository Map:
+{repo_map}
+
+Diff:
+{diff}
+
+Return specific file paths, exact 1-based line numbers, severity, issue descriptions, and complete suggested fixes.
+"""
+    review = await llm.parse(prompt, schema=ReviewOutput, stage="skilled_baseline")
+    return review, llm.call_count
 
 
 def display_review(final_review: ReviewOutput):
@@ -263,12 +466,19 @@ async def review_command(config: ReviewStemConfig):
 
     diff, using_benchmark = get_git_diff(config)
     repo_path = benchmark_repo_path(Path.cwd()) if using_benchmark else Path.cwd()
-    case_name = "mock_sql_injection" if using_benchmark else "live_review"
+    case_name = "sql_injection" if using_benchmark else "live_review"
 
     if using_benchmark and not config.quiet:
         console.print("[yellow]No local changes detected. Using benchmark scenario.[/yellow]")
 
-    final_review, evaluation, _ = await run_review_pipeline(diff, repo_path, config, case_name)
+    final_review, evaluation, _, _ = await run_review_pipeline(
+        diff,
+        repo_path,
+        config,
+        case_name,
+        mode="review",
+        fallback_diff=using_benchmark,
+    )
 
     if not config.quiet and evaluation.score >= 0.75:
         console.print("[yellow]Consolidating review guidance...[/yellow]")
@@ -300,13 +510,21 @@ async def benchmark_command(case_ids: str | None, config: ReviewStemConfig):
         if not config.quiet:
             console.print(f"[bold yellow]Benchmark case:[/bold yellow] {case.case_id}")
 
-        baseline_review = await run_baseline_review(case.diff, repo_path, config)
+        baseline_review, baseline_calls = await run_baseline_review(case.diff, repo_path, config)
         baseline_score = score_review(case, baseline_review, repo_path)
-        reviewstem_review, evaluation, scores = await run_review_pipeline(
+        skilled_baseline_review, skilled_baseline_calls = await run_skilled_baseline_review(
             case.diff,
             repo_path,
             config,
             case.case_id,
+        )
+        skilled_baseline_score = score_review(case, skilled_baseline_review, repo_path)
+        reviewstem_review, evaluation, scores, state = await run_review_pipeline(
+            case.diff,
+            repo_path,
+            config,
+            case.case_id,
+            mode="benchmark",
             persist_outputs=False,
         )
         reviewstem_score = score_review(case, reviewstem_review, repo_path)
@@ -315,10 +533,19 @@ async def benchmark_command(case_ids: str | None, config: ReviewStemConfig):
                 "case_id": case.case_id,
                 "title": case.title,
                 "baseline_score": baseline_score.score,
+                "skilled_baseline_score": skilled_baseline_score.score,
                 "reviewstem_score": reviewstem_score.score,
                 "fitness_score": round(evaluation.score, 2),
                 "passes": len(scores),
+                "baseline_calls": baseline_calls,
+                "skilled_baseline_calls": skilled_baseline_calls,
+                "reviewstem_calls": state.outputs.get("llm_call_count", 0),
+                "requires_context": case.requires_context,
                 "notes": reviewstem_score.notes,
+                "issue_detected": reviewstem_score.issue_detected,
+                "grounding_score": reviewstem_score.grounding_score,
+                "concept_score": reviewstem_score.concept_score,
+                "severity_score": reviewstem_score.severity_score,
             }
         )
 
@@ -350,17 +577,24 @@ def doctor():
 def _print_benchmark_table(results: list[dict]):
     table = Table(title="ReviewStem Benchmark")
     table.add_column("Case")
-    table.add_column("Baseline", justify="right")
+    table.add_column("Generic", justify="right")
+    table.add_column("Generic+Skills", justify="right")
     table.add_column("ReviewStem", justify="right")
     table.add_column("Delta", justify="right")
+    table.add_column("Detected?", justify="center")
+    table.add_column("Calls", justify="right")
     table.add_column("Passes", justify="right")
     for result in results:
         delta = result["reviewstem_score"] - result["baseline_score"]
+        detected = "Y" if result.get("issue_detected", False) else "N"
         table.add_row(
             result["case_id"],
             f"{result['baseline_score']:.2f}",
+            f"{result['skilled_baseline_score']:.2f}",
             f"{result['reviewstem_score']:.2f}",
             f"{delta:+.2f}",
+            detected,
+            f"{result['baseline_calls']}/{result['skilled_baseline_calls']}/{result['reviewstem_calls']}",
             str(result["passes"]),
         )
     console.print(table)

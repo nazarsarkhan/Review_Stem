@@ -36,6 +36,6 @@ class ImmuneSystem:
         7. Provide a cohesive Executive Summary.
         8. Output the final ReviewOutput JSON with high-fidelity and structurally sound comments.
         """
-        final_review = await self.llm.parse(prompt, schema=ReviewOutput)
+        final_review = await self.llm.parse(prompt, schema=ReviewOutput, stage="synthesize_review")
         logger.info("Final review contains %s critical comments.", len(final_review.comments))
         return final_review

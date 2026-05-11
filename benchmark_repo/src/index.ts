@@ -1,13 +1,15 @@
 import express from 'express';
+import adminRouter from './routes/admin';
+import importRouter from './routes/import';
+import { requireAuth, requireAdmin } from './middleware/auth';
 const app = express();
 app.use(express.json());
 
-const db = {
-    query: (text, params) => {
-        console.log(`Executing: ${text}`);
-        return Promise.resolve({ rows: [] });
-    }
-};
+app.use('/internal/admin', adminRouter);
+app.use(requireAuth);
+app.use(requireAdmin);
+app.use('/admin', adminRouter);
+app.use('/import', importRouter);
 
 app.get('/health', (req, res) => {
     res.send({ status: 'ok' });

@@ -1,0 +1,51 @@
+{
+  "case_id": "unhandled_promise_rejection",
+  "description": "Unhandled promise rejection in async email service that can crash the server",
+  "diff_file": "benchmark_repo/src/services/email.ts",
+  "expected_issues": [
+    {
+      "severity": "High",
+      "category": "Quality",
+      "issue_type": "Unhandled Promise Rejection",
+      "description": "sendWelcomeEmail function does not handle errors from emailClient.send(). If email sending fails, the promise rejection is unhandled and can crash the Node.js process.",
+      "location": "benchmark_repo/src/services/email.ts:15-23",
+      "vulnerable_code": "await emailClient.send({ ... }); // No try/catch",
+      "impact": "Server crash on email service failure, poor user experience, no error logging",
+      "suggested_fix": "Wrap email sending in try/catch block, log error with context, and return success/failure status. Example:\n\ntry {\n  await emailClient.send({ ... });\n  return { success: true };\n} catch (error) {\n  logger.error('Failed to send welcome email', { userId, error });\n  return { success: false, error: error.message };\n}",
+      "cwe": "CWE-755: Improper Handling of Exceptional Conditions"
+    },
+    {
+      "severity": "High",
+      "category": "Quality",
+      "issue_type": "Fire-and-Forget Async",
+      "description": "notifyUserAsync calls sendNotification without awaiting or catching errors. Errors are silently swallowed or cause unhandled rejections.",
+      "location": "benchmark_repo/src/services/email.ts:26-30",
+      "vulnerable_code": "sendNotification(userId, message); // Not awaited, no .catch()",
+      "impact": "Silent failures, no error visibility, potential process crashes",
+      "suggested_fix": "Either await the call with error handling, or add .catch() to handle errors:\n\nsendNotification(userId, message).catch(error => {\n  logger.error('Failed to send notification', { userId, error });\n});"
+    }
+  ],
+  "expected_tests": [
+    {
+      "test_type": "unit",
+      "description": "sendWelcomeEmail should handle email service failures gracefully",
+      "test_code": "it('handles email service failure', async () => {\n  jest.spyOn(emailClient, 'send').mockRejectedValue(new Error('Service down'));\n  const result = await sendWelcomeEmail(1);\n  expect(result.success).toBe(false);\n  expect(result.error).toContain('Service down');\n});"
+    },
+    {
+      "test_type": "unit",
+      "description": "sendWelcomeEmail should return success when email sends",
+      "test_code": "it('returns success when email sends', async () => {\n  jest.spyOn(emailClient, 'send').mockResolvedValue(undefined);\n  const result = await sendWelcomeEmail(1);\n  expect(result.success).toBe(true);\n});"
+    },
+    {
+      "test_type": "integration",
+      "description": "notifyUserAsync should not crash on email failure",
+      "test_code": "it('does not crash on notification failure', async () => {\n  jest.spyOn(emailClient, 'send').mockRejectedValue(new Error('Fail'));\n  expect(() => notifyUserAsync(1, 'test')).not.toThrow();\n  await new Promise(resolve => setTimeout(resolve, 100)); // Wait for async\n});"
+    }
+  ],
+  "related_files": [],
+  "concept_groups": [
+    ["unhandled rejection", "promise rejection", "async error", "error handling"],
+    ["email", "notification", "external service"],
+    ["crash", "process termination", "availability"]
+  ]
+}

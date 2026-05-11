@@ -1,326 +1,163 @@
 [
   {
-    "skill_name": "auth_endpoint_review",
-    "trigger": "admin",
+    "skill_name": "SQL Injection and Unsafe Query Construction Review",
+    "trigger": "Use when a PR modifies database access, raw SQL, query construction, search/filter/login endpoints, or user-controlled values in queries.",
     "risk_profile": [
-      "missing authorization",
-      "privilege escalation"
+      "SQL injection through unsafe interpolation",
+      "Missing parameter binding for user-controlled values",
+      "Escaping or string formatting mistaken for parameterization",
+      "Sensitive data exposure through overly broad query behavior",
+      "Query construction that changes semantics for special characters"
     ],
     "context_plan": [
-      "inspect auth middleware"
+      "Inspect changed database access code and identify all user-controlled values that reach a query",
+      "Compare unsafe string construction with existing parameterized query patterns in the repository",
+      "Check whether the suggested fix binds every dynamic value through placeholders or query builder parameters",
+      "Look for search, filter, login, and lookup paths where attacker-controlled input can affect SQL structure"
     ],
     "checklist": [
-      "Does the route require admin role?"
+      "Does any SQL string interpolate request, route, form, or function parameters directly?",
+      "Are placeholders paired with complete argument arrays or query-builder bindings?",
+      "Does the fix avoid manual escaping as the primary defense?",
+      "Could wildcard, quote, comment, or boolean payloads alter query semantics?",
+      "Are tests proposed for malicious input and normal lookup behavior?"
     ],
     "test_templates": [
-      "anonymous 401"
+      "A lookup containing quotes or SQL comment syntax is treated as data and does not alter the query structure",
+      "The repository database mock verifies that user input is passed as a bound parameter",
+      "Normal search/filter behavior still returns expected records after parameterization"
     ],
-    "source_case": null,
+    "source_case": "sql_injection",
     "success_score": 0.9
   },
   {
-    "skill_name": "Low-Context PR Triage for Missing Diff Artifacts",
-    "trigger": "Use when a PR lacks substantive review inputs, such as missing changed files, empty file contexts, placeholder/mock diff content, or absent title/description, making code-level review unreliable.",
+    "skill_name": "Admin Route Authentication/Authorization Review",
+    "trigger": "Use when a PR modifies admin or privileged backend/API routes, route mounting, middleware ordering, or authorization behavior.",
     "risk_profile": [
-      "Insufficient context risk",
-      "Hidden regression risk",
-      "Unreviewable diff risk",
-      "Missing test coverage risk",
-      "Integration risk due to unknown scope"
+      "Missing authentication on privileged routes",
+      "Missing admin authorization checks",
+      "Privilege escalation through inconsistent role checks",
+      "Middleware ordering that leaves handlers reachable before auth",
+      "Route mounting bypass through alternate unprotected paths",
+      "Missing 401 and 403 regression tests"
     ],
     "context_plan": [
-      "Confirm whether the diff is real or placeholder content",
-      "Obtain or request the changed file list and per-file context",
-      "Check PR title, description, and commit context for intent and risk notes",
-      "Map any newly available files to architectural areas before reviewing",
-      "Defer code-specific analysis until actual source changes are visible"
+      "Inspect changed route handlers for authentication and role checks",
+      "Read router mounting or application setup files when route protection may be applied outside the handler",
+      "Compare with established protected-route patterns elsewhere in the repository",
+      "Check middleware order and alternate mount paths before assuming global protection applies",
+      "Review tests for unauthenticated, non-admin, and admin outcomes"
     ],
     "checklist": [
-      "Confirm the PR includes a real diff and enumerated changed files",
-      "Classify the change at a high level if possible: feature, bugfix, refactor, docs, test-only, or config-only",
-      "State clearly that substantive review is blocked if source artifacts are missing",
-      "Avoid inventing file-specific findings or behavioral claims without evidence",
-      "Request missing context needed for correctness, compatibility, and risk assessment",
-      "Identify whether test impact can be assessed; if not, explicitly defer test review",
-      "Flag that security, performance, and integration review cannot be completed until code is visible",
-      "Stop at triage guidance once missing-context blockers are documented"
+      "Is authentication enforced before the privileged handler runs?",
+      "Is admin or equivalent role authorization enforced after authentication?",
+      "Could route mounting or middleware order expose the route through an unprotected path?",
+      "Are all methods and subroutes covered by the same protection?",
+      "Are negative-path tests present for 401 and 403 behavior?"
     ],
     "test_templates": [
-      "Defer test planning until actual changed files and behavior are available",
-      "Once real diff is available, identify impacted modules and request or verify targeted tests",
-      "If behavior changes are confirmed, check for corresponding unit, integration, or regression coverage"
+      "Unauthenticated requests to the admin endpoint are denied",
+      "Authenticated non-admin requests to the admin endpoint are denied",
+      "Authenticated admin requests succeed",
+      "Alternate mount paths and HTTP methods cannot bypass middleware"
     ],
-    "source_case": "reviewgenome-mock-nonrepo-001",
+    "source_case": "admin_auth",
+    "success_score": 0.88
+  },
+  {
+    "skill_name": "Cache Invalidation Audit for Update-Path Stale-Read Bugs",
+    "trigger": "Use when a PR changes cache behavior, cached reads, mutation paths, update flows, or cache key construction.",
+    "risk_profile": [
+      "Stale cache after successful update",
+      "Read and write cache key mismatch",
+      "Missing invalidation after mutation",
+      "Asymmetric create, update, and delete cache behavior",
+      "Missing read-update-read regression tests"
+    ],
+    "context_plan": [
+      "Trace read-path cache key construction and update-path invalidation key construction",
+      "Verify every successful update invalidates, refreshes, or overwrites the exact key later served by reads",
+      "Compare create, update, and delete behavior for cache coherence symmetry",
+      "Read surrounding cache helpers when the diff only shows one side of the read/write flow"
+    ],
+    "checklist": [
+      "Does the update path invalidate or refresh the same key used by cached reads?",
+      "Can a read immediately after update return stale pre-update data?",
+      "Are create, update, and delete paths consistent in cache handling?",
+      "Do error and retry branches avoid mixed stale state?",
+      "Is there a read-update-read regression test?"
+    ],
+    "test_templates": [
+      "Cache a record, update it, then read again and assert the updated value is returned",
+      "Verify the invalidation key exactly matches the read cache key",
+      "Repeated updates followed by reads always return the latest persisted value"
+    ],
+    "source_case": "cache_invalidation",
+    "success_score": 0.9
+  },
+  {
+    "skill_name": "Backend API Swallowed Error Review",
+    "trigger": "Use when a PR modifies backend/API route handlers, import/process endpoints, try/catch blocks, async control flow, promise handling, or response emission.",
+    "risk_profile": [
+      "Caught exceptions ignored",
+      "Async errors not awaited or returned",
+      "False 2xx success response after failure",
+      "Logging without propagation",
+      "Partial side effects before failure",
+      "Missing negative-path tests"
+    ],
+    "context_plan": [
+      "Trace route control flow from request validation through response emission",
+      "Inspect try/catch blocks and promise chains for swallowed failures",
+      "Verify caught errors return non-2xx responses, rethrow, or call error middleware",
+      "Check whether async work is awaited before success is sent",
+      "Review tests for thrown and rejected downstream failures"
+    ],
+    "checklist": [
+      "Can execution continue to a success response after a caught exception?",
+      "Are downstream async operations awaited or returned?",
+      "Is logging used in addition to propagation rather than as a substitute?",
+      "Do partial side effects have explicit failure semantics?",
+      "Are negative-path tests present for thrown and rejected failures?"
+    ],
+    "test_templates": [
+      "The route returns a non-2xx response when the service throws",
+      "The route does not emit success before required async work completes",
+      "Rejected promises are propagated to error handling",
+      "Caught failures are logged and still represented in the HTTP response"
+    ],
+    "source_case": "async_swallowed_error",
     "success_score": 0.9
   },
   {
     "skill_name": "Low-Context PR Triage and Repository Validation",
-    "trigger": "PR review input lacks actionable repository context, such as placeholder diff content, empty changed files, missing file context, or unavailable/non-git repository metadata.",
+    "trigger": "Use when PR review input lacks a real diff, changed-file context, repository metadata, title, description, or uses placeholder/mock content.",
     "risk_profile": [
-      "Missing repository context may conceal real code changes and review-critical risks",
-      "Placeholder or mock diff content prevents semantic correctness assessment",
-      "Absent changed-file data blocks impact analysis and test mapping",
-      "Repository extraction or PR ingestion failures can create misleading review conditions",
-      "Speculative code-level findings are likely when evidence is incomplete"
+      "Missing diff prevents semantic review",
+      "Placeholder diff can cause speculative findings",
+      "Missing changed files blocks impact analysis",
+      "Missing PR metadata obscures intended behavior",
+      "Repository extraction failures can create misleading review conditions"
     ],
     "context_plan": [
-      "Treat placeholder or empty diff input as non-actionable until validated",
-      "Verify whether repository access, git initialization, or PR data extraction failed",
-      "Request concrete PR metadata: title, description, changed files, and file contents",
-      "Reclassify the review by subsystem and risk only after real file context is available"
+      "Validate whether the diff is real and the changed files are accessible",
+      "Request PR title, description, changed files, and file contents when missing",
+      "Avoid file-specific findings until concrete source evidence is available",
+      "Defer correctness, security, performance, and test assessment until source context exists"
     ],
     "checklist": [
-      "Is the PR context complete and trustworthy?",
-      "Does the diff contain meaningful hunks rather than placeholder text?",
-      "Are there actual changed source, config, or test files listed?",
-      "Is repository and branch metadata available and consistent?",
-      "Can change type be classified from filenames or PR description?",
-      "Can affected tests be mapped once file-level context is available?",
-      "Is there enough evidence to assess correctness, regression risk, and security without speculation?"
+      "Is there a real unified diff with changed files?",
+      "Are changed files accessible in the repository?",
+      "Is PR intent described by title, description, or equivalent metadata?",
+      "Are review limitations explicitly stated instead of inventing findings?",
+      "Is the minimum missing context requested?"
     ],
     "test_templates": [
-      "Validate that empty or placeholder diffs produce a triage-only review outcome",
-      "Validate that missing changed_files or file_contexts suppresses code-specific findings",
-      "Validate that repository access failures are surfaced as process or metadata risks",
-      "Validate that substantive review is deferred until real PR title, description, and file context are present"
+      "Placeholder or empty diffs produce triage-only review output",
+      "Missing file context suppresses code-specific findings",
+      "Repository access failures are surfaced as process blockers"
     ],
-    "source_case": "reviewgenome-nonrepo-placeholder-diff",
-    "success_score": 0.91
-  },
-  {
-    "skill_name": "Admin Route Authentication/Authorization Review",
-    "trigger": "Use when a PR modifies admin or privileged backend/API routes, especially files like src/routes/admin.ts or routing/middleware wiring, and there is any signal of changed or missing authentication/authorization behavior.",
-    "risk_profile": [
-      "Missing authentication on privileged admin routes",
-      "Insufficient authorization checks for administrative actions",
-      "Privilege escalation via unprotected or inconsistently protected endpoints",
-      "Security regression from incorrect middleware ordering or route wiring",
-      "Alternate path or method bypass of auth protections",
-      "Lack of negative-path test coverage for unauthenticated or non-admin access"
-    ],
-    "context_plan": [
-      "Inspect the changed admin route file for authentication and authorization middleware presence and ordering",
-      "Compare the route with established protected-route patterns elsewhere in the codebase",
-      "Verify how the route is mounted in the app/router and whether any global guards actually apply",
-      "Review auth middleware, role/permission helpers, and request-context assumptions used by handlers",
-      "Inspect related tests for explicit 401 and 403 behavior across relevant methods and paths"
-    ],
-    "checklist": [
-      "Are all admin or privileged endpoints protected by authentication middleware?",
-      "Are authenticated users also checked for admin role or equivalent permission?",
-      "Is middleware applied before the handler executes?",
-      "Does route registration or mounting preserve the intended protections?",
-      "Could any HTTP method, sub-route, or alternate mount path bypass protection?",
-      "Do handlers rely on authenticated request context only after verification?",
-      "Are unauthenticated and unauthorized cases handled distinctly as 401 vs 403 where applicable?",
-      "Are there tests for unauthenticated, non-admin, and admin access outcomes?",
-      "Is there concrete code-path evidence before assuming global middleware protects the route?",
-      "Does the route expose sensitive actions or data without defense in depth?"
-    ],
-    "test_templates": [
-      "Unauthenticated request to the admin endpoint returns 401 or the expected deny/redirect response",
-      "Authenticated non-admin request to the admin endpoint returns 403",
-      "Authenticated admin request to the admin endpoint succeeds",
-      "Each HTTP method exposed by the admin route enforces the same authentication and authorization checks",
-      "Route cannot be reached through an alternate mounting path without auth middleware",
-      "Regression test verifying middleware order prevents handler execution for unauthorized requests"
-    ],
-    "source_case": "reviewgenome-pr-001-missing-auth",
-    "success_score": 0.76
-  },
-  {
-    "skill_name": "Backend API route swallowed-error review",
-    "trigger": "When a PR modifies backend/API route handlers\u2014especially import/process endpoints\u2014with changes to try/catch blocks, async control flow, or response handling, and there is risk that failures may be suppressed instead of surfaced, logged, or mapped to correct HTTP responses.",
-    "risk_profile": [
-      "Exceptions are caught and ignored, masking real import or processing failures",
-      "Route returns 2xx/success even when a downstream step throws or rejects",
-      "Async work is not awaited or returned, causing rejected promises to escape response semantics",
-      "Handled errors are neither logged nor instrumented, reducing observability during incidents",
-      "Partial side effects may occur before failure without rollback or explicit partial-failure reporting",
-      "Generic error mapping may leak internals or understate severity in client-facing responses"
-    ],
-    "context_plan": [
-      "Inspect the modified route file for try/catch blocks, promise chains, and all early-return/error-return paths",
-      "Trace the route contract from request validation through service invocation to final HTTP response semantics",
-      "Check whether each caught error is logged, transformed, rethrown, or converted into an intentional status/response body",
-      "Verify that async operations are awaited or returned so rejection paths are not silently lost",
-      "Assess whether state changes can happen before failure and whether transactional or partial-failure behavior is defined",
-      "Compare route behavior with repository conventions for API error handling and shared helpers",
-      "Look for existing or missing tests covering thrown exceptions and rejected promises"
-    ],
-    "checklist": [
-      "Does every failure path produce an intentional non-2xx response when the operation fails?",
-      "Are there any empty catch blocks or broad catches that discard the error object?",
-      "Are caught exceptions logged with actionable context or otherwise propagated appropriately?",
-      "Do success responses occur only after the operation has actually completed successfully?",
-      "Are async calls properly awaited/returned so rejections are captured by route error handling?",
-      "Do response bodies match the actual outcome and avoid false-success semantics?",
-      "Are client-facing error messages safe while still useful for callers?",
-      "Is partial state change prevented, rolled back, or clearly reported when failures occur?",
-      "Are route-level error mappings consistent with API conventions in the codebase?",
-      "Are deterministic tests present or proposed for thrown and rejected failure scenarios?"
-    ],
-    "test_templates": [
-      "Returns a non-2xx status when the import/service layer throws synchronously",
-      "Returns a non-2xx status when a downstream async import step rejects",
-      "Does not send a success response if any required import step fails before completion",
-      "Logs or forwards caught exceptions with enough context to diagnose the failing operation",
-      "Preserves expected response shape for both success and failure cases",
-      "Verifies that unawaited async work is not causing silent failures after a 2xx response",
-      "Covers partial-failure behavior: either rollback occurs or the response explicitly reports incomplete import"
-    ],
-    "source_case": "pr-005-swallowed-error-import-route",
-    "success_score": 0.93
-  },
-  {
-    "skill_name": "Cache invalidation audit for update-path stale-read bugs",
-    "trigger": "Use when a PR changes cache behavior or cached read/write flows in backend code, especially when updates to source-of-truth records may not invalidate or refresh the exact cache entries later served by reads.",
-    "risk_profile": [
-      "A write/update path may persist data without invalidating or refreshing the corresponding cached entry",
-      "Read-after-update flows may return stale pre-update data despite successful mutation",
-      "Read-path cache keys and update-path invalidation keys may not match exactly",
-      "Create/delete paths may handle cache coherence while update paths are missing equivalent invalidation",
-      "Separated abstractions for persistence and caching can hide omitted invalidation on success branches",
-      "Missing regression tests can allow stale-read bugs in update flows to persist"
-    ],
-    "context_plan": [
-      "Inspect the cache module and identify all mutation entry points, with emphasis on update/write paths",
-      "Trace the exact cache key construction used by read caching",
-      "Verify whether each successful update path invalidates, refreshes, or overwrites that same key",
-      "Compare cache handling across create, update, delete, and read-miss flows to find asymmetric coverage",
-      "Check early returns, error handling, and retry/success branches for persistence without cache coherence maintenance",
-      "Review existing tests for concrete read -> update -> read freshness coverage"
-    ],
-    "checklist": [
-      "Does every update/write path invalidate, refresh, or overwrite the affected cache entry?",
-      "After a successful update, can the next read still reach a stale cached value?",
-      "Is the invalidation target exactly the same key or key namespace used by cached reads?",
-      "Are create, update, and delete mutation flows consistent in cache coherence behavior?",
-      "Do success, retry, and error branches avoid leaving stale cached state reachable?",
-      "Are repeated updates followed by reads guaranteed to return the latest persisted data?",
-      "Is invalidation scoped to the affected entity while still covering all read aliases for that entity?",
-      "Are findings tied to concrete code paths rather than generic concerns about caching?",
-      "Are regression tests present for update-triggered invalidation and fresh repopulation?"
-    ],
-    "test_templates": [
-      "Cache a record, perform an update, then read again and assert the updated value is returned rather than the pre-update cached value",
-      "Verify that a successful update invalidates or refreshes the exact cache key used by reads",
-      "Verify that update-triggered invalidation affects only the updated entity and not unrelated cache entries",
-      "Simulate repeated updates followed by reads and assert each read returns the latest persisted state",
-      "Exercise a failed update and confirm cache behavior remains coherent without mixed stale state",
-      "Compare delete and update mutation paths to ensure both maintain equivalent cache coherence guarantees"
-    ],
-    "source_case": "pr-004-cache-invalidation-genome",
-    "success_score": 0.9
-  },
-  {
-    "skill_name": "Route-Level Swallowed Import Error Review",
-    "trigger": "When a PR modifies a backend import route, especially src/routes/import.ts, and introduces or changes try/catch, async import flow, or response emission logic where an operational failure could be caught and execution may continue.",
-    "risk_profile": [
-      "A catch block may swallow an import failure instead of propagating it via throw, return, or next(err)",
-      "Execution may continue after a caught exception and still emit a success or partial-success response",
-      "Logged import failures may be treated as handled even though the client receives misleading success semantics",
-      "HTTP status code and response body may not reflect the actual outcome of the import operation",
-      "Rejected promises in the import flow may be neutralized by missing await or no-op catch behavior",
-      "Partial side effects may occur before failure, but the route may fail to surface that failure explicitly"
-    ],
-    "context_plan": [
-      "Inspect the exact changes in src/routes/import.ts first, focusing on try/catch blocks, async calls, and final response paths",
-      "Read the full route implementation to trace whether caught errors terminate control flow or fall through to success handling",
-      "Verify whether import failures are rethrown, returned as non-2xx responses, or delegated to error middleware",
-      "Check whether logging is used merely for observability or incorrectly as a substitute for propagation",
-      "Look for tests covering thrown exceptions and rejected promises in the import path, but treat them as supporting evidence after confirming file-level behavior"
-    ],
-    "checklist": [
-      "Does the route contain a catch block that absorbs an import failure without rethrowing, returning an error, or calling next(err)?",
-      "After a caught exception, can execution still reach a success response or normal completion path?",
-      "Are async import operations properly awaited so rejections are observed by the intended failure handler?",
-      "If an error is logged, is failure still propagated rather than silently converted into success?",
-      "Do HTTP status and response body accurately represent operational import failure rather than validation-style or success semantics?",
-      "Can the catch path return undefined, null, or partial data that downstream code interprets as successful import completion?",
-      "If partial import side effects can occur before failure, is that failure made explicit to the client or caller?",
-      "Are negative-path tests present for thrown exceptions and rejected promises, specifically asserting non-success outcomes and no success fallthrough?"
-    ],
-    "test_templates": [
-      "Route returns a non-2xx response when the core import operation throws inside the route try/catch",
-      "Caught import failure does not fall through to the success response path",
-      "Rejected promise in the import flow is propagated to route-level failure handling rather than swallowed",
-      "If the route logs import failure, it still throws, returns an error response, or calls next(err)",
-      "Validation failures remain distinct from operational import failures in both status code and response body",
-      "When partial side effects occur before failure, the route still reports explicit failure rather than silent success"
-    ],
-    "source_case": "pr-005-swallowed-error-import-route",
-    "success_score": 0.99
-  },
-  {
-    "skill_name": "Triage Review for Incomplete or Unavailable PR Diff",
-    "trigger": "Use this skill when a PR lacks a real diff or changed-file context, including placeholder diff text, empty changed-file lists, missing PR title/description, or repository metadata/tooling states that prevent computing base/head changes.",
-    "risk_profile": [
-      "Code correctness cannot be assessed without an actual diff",
-      "Hidden regressions may exist because touched files and impacted modules are unknown",
-      "Test adequacy cannot be evaluated without discoverable code changes",
-      "Repository or tooling misconfiguration may be blocking access to revisions",
-      "A normal review response could create false confidence if limitations are not made explicit"
-    ],
-    "context_plan": [
-      "Confirm whether the workspace is a valid git checkout and whether base/head revisions are available",
-      "Request the real unified diff or, at minimum, the changed-file list",
-      "Request PR title and description to establish intent and scope",
-      "Once file context is available, map changed files to impacted components and dependencies",
-      "Only review related tests after the actual change surface is known"
-    ],
-    "checklist": [
-      "Verify the diff is real and not placeholder or mock content",
-      "Verify changed files are enumerated and accessible",
-      "Verify PR intent is documented through title, description, or equivalent metadata",
-      "Determine whether repository state is non-git, detached, exported, or otherwise unable to produce a diff",
-      "Do not infer implementation details that are not observable in provided artifacts",
-      "Do not approve or reject code quality based on missing or placeholder context",
-      "State review limitations explicitly and mark missing context as a blocker",
-      "Request the minimum actionable artifacts needed to continue: diff, changed files, and PR intent",
-      "Proceed with correctness, security, performance, and maintainability review only after source context is available"
-    ],
-    "test_templates": [
-      "Please provide the real unified diff or a list of changed files before code review can continue.",
-      "Please confirm the repository state and share the base and head revisions used for this PR.",
-      "Please provide the PR title and description so the intended scope and behavior change can be established.",
-      "Once the actual changed files are available, verify that at least one impacted test file or relevant validation path is identified."
-    ],
-    "source_case": "reviewgenome-non-git-placeholder-pr-001",
-    "success_score": 0.99
-  },
-  {
-    "skill_name": "Low-Context PR Triage Review",
-    "trigger": "Use when PR review input lacks meaningful code context, such as missing changed files, absent file context, empty PR title/description, mock or non-semantic diff content, or user intent that does not clearly request substantive code review.",
-    "risk_profile": [
-      "Insufficient repository context may conceal real code, security, or behavioral risks.",
-      "Mock or placeholder diff content prevents accurate semantic review.",
-      "Absent changed files block file-level inspection and impact analysis.",
-      "Missing PR metadata reduces confidence in inferred intent and expected behavior.",
-      "User intent may be unrelated to code review, creating task mismatch risk."
-    ],
-    "context_plan": [
-      "Treat the submission as a triage case rather than a deep code review.",
-      "Rely only on explicit evidence present in the provided PR context.",
-      "Identify missing changed files, file context, title, and description as primary blockers.",
-      "Avoid domain-specific assumptions until concrete repository signals are available.",
-      "Provide constrained feedback focused on insufficiency of context and next required inputs."
-    ],
-    "checklist": [
-      "Confirm whether the PR contains any actual code changes.",
-      "Verify that changed files are present and reviewable.",
-      "Check whether file context or code snippets are available for semantic analysis.",
-      "Verify that the PR title and description explain intended behavior or purpose.",
-      "Assess whether any tests are referenced if behavioral changes are claimed.",
-      "Avoid file-specific, architectural, or correctness claims without direct evidence.",
-      "Recommend clarification or additional context before issuing substantive review conclusions."
-    ],
-    "test_templates": [
-      "No test generation when there are no concrete code changes or target files.",
-      "If behavior changes are later provided, request tests covering expected behavior, edge cases, and regressions.",
-      "If files become available, map tests to impacted modules before suggesting specific cases."
-    ],
-    "source_case": "review-genome-generic-empty-context-001",
+    "source_case": "low_context",
     "success_score": 0.84
   }
 ]

@@ -1,0 +1,311 @@
+{
+  "run_id": "cache_invalidation-fefff6a870",
+  "mode": "benchmark",
+  "case_id": "cache_invalidation",
+  "timestamp": "2026-05-11T15:16:16+00:00",
+  "target_score": 0.9,
+  "max_iterations": 1,
+  "model": "gpt-5.4",
+  "stop_reason": "target_score_met: 0.96 >= 0.90",
+  "environment": {
+    "changed_files": [
+      "src/cache/userCache.ts"
+    ],
+    "diff_summary": "1 changed files, +0/-1, signals: database/query, cache, async/error",
+    "repo_map_summary": "package.json\nREADME.md\n    src/\n        index.ts\n        cache/\n            accountCache.ts\n            redis.ts\n            userCache.ts\n        db/\n            index.ts\n            orders.ts\n            users.ts\n        middleware/\n            auth.ts\n        routes/\n            admin.ts\n            auth.ts\n            import.ts\n... (9 more entries)",
+    "selected_benchmark_case": "cache_invalidation",
+    "diff_was_real": true,
+    "repo_path": "C:\\Users\\nazar\\Desktop\\Uni\\Projects\\JB_internships\\Review_Stem\\benchmark_repo"
+  },
+  "selected_skills": [
+    {
+      "skill_name": "cache-invalidation-audit-for-update-path-stale-read-bugs",
+      "trigger_context": "Use when a PR changes cache behavior, cached reads, mutation paths, update",
+      "trait_instruction": "Use when a PR changes cache behavior, cached reads, mutation paths, update",
+      "total_score": 3.0,
+      "matched_terms": [],
+      "matched_fields": {},
+      "reason": "Matched with score 3.00",
+      "source_case": null,
+      "success_score": 0.0,
+      "fallback": false,
+      "risk_profile": [],
+      "context_plan": [],
+      "checklist": [],
+      "test_templates": []
+    }
+  ],
+  "initial_reviewer_genomes": [
+    {
+      "persona_name": "Cache Invalidation & Data Consistency Reviewer",
+      "focus_areas": [
+        "Cache invalidation on user update paths",
+        "Stale-read risks between database and Redis cache",
+        "Behavioral impact of removing cache eviction in src/cache/userCache.ts",
+        "Consistency between cached user reads and mutation flows across routes/services"
+      ],
+      "specific_checks": [
+        "Verify whether user records are cached under keys like `user:${userId}` anywhere in the repository and whether reads depend on eviction after updates.",
+        "Confirm whether removing `cache.del(`user:${userId}`)` can cause stale data to be served after `db.users.update(userId, data)`.",
+        "Check if there is an alternative cache refresh/write-through mechanism that makes deletion unnecessary; if none exists, flag this as a correctness regression.",
+        "Review all user mutation entry points and read paths (e.g. routes/users.ts, routes/profile.ts, middleware/auth.ts, cache/accountCache.ts) for assumptions that updated user data becomes immediately visible.",
+        "Recommend tests covering: update user -> subsequent cached read returns fresh data; update failure does not corrupt cache state; repeated updates do not leave stale Redis entries."
+      ],
+      "source_skills": [
+        "cache-invalidation-audit-for-update-path-stale-read-bugs"
+      ],
+      "risk_profile": [
+        "stale cache entries after mutation",
+        "read-after-write inconsistency",
+        "hidden correctness regressions in update paths"
+      ]
+    },
+    {
+      "persona_name": "User Data Flow & API Surface Reviewer",
+      "focus_areas": [
+        "User-related persistence and cache integration",
+        "Impact on auth/profile/user-facing routes",
+        "Cross-module coupling between db, cache, and route handlers"
+      ],
+      "specific_checks": [
+        "Inspect src/db/users.ts, src/routes/users.ts, src/routes/profile.ts, and src/middleware/auth.ts to determine whether they read cached user state that would now remain stale.",
+        "Check whether any admin/import/auth flows update users indirectly and rely on `updateUser` for consistency.",
+        "Assess whether the change alters observable API behavior, especially immediately after profile/account updates.",
+        "Suggest targeted regression tests in tests/users.test.ts for end-to-end user update/read scenarios involving cache presence."
+      ],
+      "source_skills": [
+        "cache-invalidation-audit-for-update-path-stale-read-bugs"
+      ],
+      "risk_profile": [
+        "user-visible stale profile data",
+        "authorization decisions based on outdated cached user state",
+        "cross-layer consistency issues"
+      ]
+    }
+  ],
+  "reviewer_skill_map": {
+    "Cache Invalidation & Data Consistency Reviewer": [
+      "cache-invalidation-audit-for-update-path-stale-read-bugs"
+    ],
+    "User Data Flow & API Surface Reviewer": [
+      "cache-invalidation-audit-for-update-path-stale-read-bugs"
+    ]
+  },
+  "tool_use": [
+    {
+      "iteration": 1,
+      "reviewer": "User Cache Consistency & API Behavior Reviewer",
+      "tool_name": "read_file",
+      "path": "src/cache/userCache.ts",
+      "success": true,
+      "characters_returned": 466,
+      "error": null
+    },
+    {
+      "iteration": 1,
+      "reviewer": "User Cache Consistency & API Behavior Reviewer",
+      "tool_name": "read_file",
+      "path": "src/db/users.ts",
+      "success": true,
+      "characters_returned": 193,
+      "error": null
+    },
+    {
+      "iteration": 1,
+      "reviewer": "User Cache Consistency & API Behavior Reviewer",
+      "tool_name": "read_file",
+      "path": "src/routes/users.ts",
+      "success": true,
+      "characters_returned": 178,
+      "error": null
+    },
+    {
+      "iteration": 1,
+      "reviewer": "User Cache Consistency & API Behavior Reviewer",
+      "tool_name": "read_file",
+      "path": "src/routes/profile.ts",
+      "success": true,
+      "characters_returned": 499,
+      "error": null
+    },
+    {
+      "iteration": 1,
+      "reviewer": "User Cache Consistency & API Behavior Reviewer",
+      "tool_name": "read_file",
+      "path": "src/middleware/auth.ts",
+      "success": true,
+      "characters_returned": 287,
+      "error": null
+    }
+  ],
+  "iterations": [
+    {
+      "iteration": 1,
+      "reviewer_architecture_before": [
+        {
+          "persona_name": "Cache Invalidation & Data Consistency Reviewer",
+          "focus_areas": [
+            "Cache invalidation on user update paths",
+            "Stale-read risks between database and Redis cache",
+            "Behavioral impact of removing cache eviction in src/cache/userCache.ts",
+            "Consistency between cached user reads and mutation flows across routes/services"
+          ],
+          "specific_checks": [
+            "Verify whether user records are cached under keys like `user:${userId}` anywhere in the repository and whether reads depend on eviction after updates.",
+            "Confirm whether removing `cache.del(`user:${userId}`)` can cause stale data to be served after `db.users.update(userId, data)`.",
+            "Check if there is an alternative cache refresh/write-through mechanism that makes deletion unnecessary; if none exists, flag this as a correctness regression.",
+            "Review all user mutation entry points and read paths (e.g. routes/users.ts, routes/profile.ts, middleware/auth.ts, cache/accountCache.ts) for assumptions that updated user data becomes immediately visible.",
+            "Recommend tests covering: update user -> subsequent cached read returns fresh data; update failure does not corrupt cache state; repeated updates do not leave stale Redis entries."
+          ],
+          "source_skills": [
+            "cache-invalidation-audit-for-update-path-stale-read-bugs"
+          ],
+          "risk_profile": [
+            "stale cache entries after mutation",
+            "read-after-write inconsistency",
+            "hidden correctness regressions in update paths"
+          ]
+        },
+        {
+          "persona_name": "User Data Flow & API Surface Reviewer",
+          "focus_areas": [
+            "User-related persistence and cache integration",
+            "Impact on auth/profile/user-facing routes",
+            "Cross-module coupling between db, cache, and route handlers"
+          ],
+          "specific_checks": [
+            "Inspect src/db/users.ts, src/routes/users.ts, src/routes/profile.ts, and src/middleware/auth.ts to determine whether they read cached user state that would now remain stale.",
+            "Check whether any admin/import/auth flows update users indirectly and rely on `updateUser` for consistency.",
+            "Assess whether the change alters observable API behavior, especially immediately after profile/account updates.",
+            "Suggest targeted regression tests in tests/users.test.ts for end-to-end user update/read scenarios involving cache presence."
+          ],
+          "source_skills": [
+            "cache-invalidation-audit-for-update-path-stale-read-bugs"
+          ],
+          "risk_profile": [
+            "user-visible stale profile data",
+            "authorization decisions based on outdated cached user state",
+            "cross-layer consistency issues"
+          ]
+        }
+      ],
+      "pruned_reviewer_architecture": [
+        {
+          "persona_name": "User Cache Consistency & API Behavior Reviewer",
+          "focus_areas": [
+            "Cache invalidation on user update paths",
+            "Stale-read risks between database and Redis cache",
+            "Behavioral impact of removing cache eviction in src/cache/userCache.ts",
+            "Consistency between cached user reads and mutation flows across routes, services, and middleware",
+            "Observable API/auth/profile behavior after user updates"
+          ],
+          "specific_checks": [
+            "Verify whether user records are cached under keys like `user:${userId}` anywhere in the repository and whether reads depend on eviction after updates.",
+            "Confirm whether removing `cache.del(`user:${userId}`)` can cause stale data to be served after `db.users.update(userId, data)`.",
+            "Check if there is an alternative cache refresh/write-through mechanism that makes deletion unnecessary; if none exists, flag this as a correctness regression.",
+            "Inspect src/db/users.ts, src/routes/users.ts, src/routes/profile.ts, and src/middleware/auth.ts to determine whether they read cached user state that would now remain stale.",
+            "Review all user mutation entry points, including admin/import/auth-related indirect updates, for assumptions that updated user data becomes immediately visible.",
+            "Assess whether the change alters observable API behavior, especially immediately after profile/account updates, including authorization decisions based on outdated cached user state.",
+            "Recommend tests covering: update user -> subsequent cached read returns fresh data; update failure does not corrupt cache state; repeated updates do not leave stale Redis entries; end-to-end user update/read scenarios involving cache presence."
+          ],
+          "source_skills": [
+            "cache-invalidation-audit-for-update-path-stale-read-bugs"
+          ],
+          "risk_profile": [
+            "stale cache entries after mutation",
+            "read-after-write inconsistency",
+            "hidden correctness regressions in update paths",
+            "user-visible stale profile data",
+            "authorization decisions based on outdated cached user state",
+            "cross-layer consistency issues"
+          ]
+        }
+      ],
+      "stress_profiles": {
+        "User Cache Consistency & API Behavior Reviewer": {
+          "hypothetical_bugs": [
+            "Stale read-after-write on any path that reads users via Redis key `user:${userId}`: `updateUser()` now updates the DB but leaves the old cached user intact, so immediate GET /users, GET /profile, auth/session hydration, or middleware lookups may continue returning pre-update fields until TTL/manual eviction.",
+            "Authorization or account-state regressions caused by stale cached user records after sensitive updates: if roles, permissions, email verification, disabled/locked status, password/auth flags, or tenant membership are changed in the DB, middleware/auth code that still reads `user:${userId}` from cache may make decisions using outdated state.",
+            "Cross-path inconsistency because only this mutation path stopped evicting cache: systems with multiple user update entry points (profile edit, admin update, import/sync, auth-related updates) may now diverge depending on which helper they use, producing hard-to-reproduce bugs where some updates become immediately visible while others leave stale profile/API responses or overwrite newer DB state when later logic reuses cached objects."
+          ]
+        }
+      },
+      "draft_review_summaries": {
+        "User Cache Consistency & API Behavior Reviewer": "1 comments (High:1). This change is a high-risk cache consistency regression. The repository contains a direct cached read path in `src/cache/userCache.ts:getUser()` that stores and serves users under `user:${userId}`. With eviction removed "
+      },
+      "peer_finalized_review_summaries": {
+        "User Cache Consistency & API Behavior Reviewer": "1 comments (High:1). I did not find peer feedback changing this assessment. This remains a high-severity API/cache behavior regression: cached reads still use `user:${userId}`, but updates no longer invalidate or refresh that entry, allowing"
+      },
+      "final_synthesized_review_summary": "1 comments (High:1). This change introduces a high-severity logic regression in `src/cache/userCache.ts`: user updates no longer invalidate or refresh the Redis entry used by `getUser()`, so callers can receive stale data immediately after a",
+      "fitness_score": 0.96,
+      "deterministic_penalties": [],
+      "evaluator_comments": "Accurate and well-grounded review: it identifies a concrete regression at a precise location, explains the stale-read impact clearly, and provides actionable fixes plus a useful test suggestion. The only minor gap is that it assumes `getUser()` and `updateUser()` share the exact same cache key and consistency contract; if that is guaranteed by the code, this is essentially complete.",
+      "mutation_applied": false,
+      "mutation_reason": "",
+      "mutation_delta": null
+    }
+  ],
+  "outputs": {
+    "llm_call_count": 9,
+    "llm_calls": [
+      {
+        "stage": "differentiate",
+        "prompt_tokens": 699,
+        "completion_tokens": 463,
+        "total_tokens": 1162
+      },
+      {
+        "stage": "prune_reviewers",
+        "prompt_tokens": 784,
+        "completion_tokens": 371,
+        "total_tokens": 1155
+      },
+      {
+        "stage": "stress_profile",
+        "prompt_tokens": 606,
+        "completion_tokens": 227,
+        "total_tokens": 833
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 986,
+        "completion_tokens": 106,
+        "total_tokens": 1092
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 1599,
+        "completion_tokens": 1007,
+        "total_tokens": 2606
+      },
+      {
+        "stage": "draft_review_parse",
+        "prompt_tokens": 1691,
+        "completion_tokens": 359,
+        "total_tokens": 2050
+      },
+      {
+        "stage": "peer_finalize",
+        "prompt_tokens": 795,
+        "completion_tokens": 439,
+        "total_tokens": 1234
+      },
+      {
+        "stage": "synthesize_review",
+        "prompt_tokens": 964,
+        "completion_tokens": 396,
+        "total_tokens": 1360
+      },
+      {
+        "stage": "fitness_evaluate",
+        "prompt_tokens": 627,
+        "completion_tokens": 92,
+        "total_tokens": 719
+      }
+    ],
+    "score_history": [
+      0.96
+    ],
+    "final_comment_count": 1
+  }
+}

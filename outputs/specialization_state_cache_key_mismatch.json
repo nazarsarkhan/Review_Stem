@@ -1,0 +1,276 @@
+{
+  "run_id": "cache_key_mismatch-f53b9c02b8",
+  "mode": "benchmark",
+  "case_id": "cache_key_mismatch",
+  "timestamp": "2026-05-11T15:18:55+00:00",
+  "target_score": 0.9,
+  "max_iterations": 1,
+  "model": "gpt-5.4",
+  "stop_reason": "target_score_met: 0.95 >= 0.90",
+  "environment": {
+    "changed_files": [
+      "src/cache/accountCache.ts"
+    ],
+    "diff_summary": "1 changed files, +1/-1, signals: database/query, cache, async/error",
+    "repo_map_summary": "package.json\nREADME.md\n    src/\n        index.ts\n        cache/\n            accountCache.ts\n            redis.ts\n            userCache.ts\n        db/\n            index.ts\n            orders.ts\n            users.ts\n        middleware/\n            auth.ts\n        routes/\n            admin.ts\n            auth.ts\n            import.ts\n... (9 more entries)",
+    "selected_benchmark_case": "cache_key_mismatch",
+    "diff_was_real": true,
+    "repo_path": "C:\\Users\\nazar\\Desktop\\Uni\\Projects\\JB_internships\\Review_Stem\\benchmark_repo"
+  },
+  "selected_skills": [
+    {
+      "skill_name": "cache-invalidation-audit-for-update-path-stale-read-bugs",
+      "trigger_context": "Use when a PR changes cache behavior, cached reads, mutation paths, update",
+      "trait_instruction": "Use when a PR changes cache behavior, cached reads, mutation paths, update",
+      "total_score": 3.0,
+      "matched_terms": [],
+      "matched_fields": {},
+      "reason": "Matched with score 3.00",
+      "source_case": null,
+      "success_score": 0.0,
+      "fallback": false,
+      "risk_profile": [],
+      "context_plan": [],
+      "checklist": [],
+      "test_templates": []
+    }
+  ],
+  "initial_reviewer_genomes": [
+    {
+      "persona_name": "Cache Invalidation Auditor",
+      "focus_areas": [
+        "Cache key consistency between read/write/delete paths",
+        "Stale-read risks after account updates",
+        "Cross-file usage of account cache keys"
+      ],
+      "specific_checks": [
+        "Verify the cache key prefix used in `cache.del` matches the prefix used wherever account records are cached/read (likely in `src/cache/accountCache.ts` and any callers).",
+        "Check whether this change introduces a singular/plural key mismatch (`account:` vs `accounts:`) that would prevent invalidation after `updateAccount`.",
+        "Confirm update-path behavior: after `db.users.update(accountId, data)`, subsequent reads should miss cache and fetch fresh data.",
+        "Review for related cache operations (`get`, `set`, `del`) using account IDs to ensure naming is uniform across the repository.",
+        "Recommend or verify a regression test covering: populate cache for an account, call `updateAccount`, then assert stale cached value is not returned."
+      ],
+      "source_skills": [
+        "cache-invalidation-audit-for-update-path-stale-read-bugs"
+      ],
+      "risk_profile": [
+        "Stale reads caused by failed cache invalidation on mutation paths",
+        "Silent data consistency bugs due to cache key naming drift"
+      ]
+    },
+    {
+      "persona_name": "Data Access and Persistence Path Reviewer",
+      "focus_areas": [
+        "Interaction between cache layer and database update flow",
+        "Correctness of account/user domain mapping",
+        "Potential blast radius of cache invalidation bug"
+      ],
+      "specific_checks": [
+        "Inspect whether `updateAccount` writes through `db.users.update`, and verify the account/user naming is intentional rather than a domain mismatch.",
+        "Check if other caches (`userCache.ts`, Redis helpers) use similar key conventions that should stay aligned.",
+        "Assess whether failed invalidation could affect authenticated/profile/admin routes that may read cached account data.",
+        "Look for missing error-handling or transactional expectations around DB update succeeding while cache deletion targets the wrong key."
+      ],
+      "source_skills": [
+        "cache-invalidation-audit-for-update-path-stale-read-bugs"
+      ],
+      "risk_profile": [
+        "Post-update inconsistency between persisted state and cached state",
+        "Route-level exposure of stale account data after successful writes"
+      ]
+    }
+  ],
+  "reviewer_skill_map": {
+    "Cache Invalidation Auditor": [
+      "cache-invalidation-audit-for-update-path-stale-read-bugs"
+    ],
+    "Data Access and Persistence Path Reviewer": [
+      "cache-invalidation-audit-for-update-path-stale-read-bugs"
+    ]
+  },
+  "tool_use": [
+    {
+      "iteration": 1,
+      "reviewer": "Cache Consistency and Invalidation Reviewer",
+      "tool_name": "read_file",
+      "path": "src/cache/accountCache.ts",
+      "success": true,
+      "characters_returned": 545,
+      "error": null
+    },
+    {
+      "iteration": 1,
+      "reviewer": "Cache Consistency and Invalidation Reviewer",
+      "tool_name": "read_file",
+      "path": "src/cache/accountCache.ts",
+      "success": true,
+      "characters_returned": 545,
+      "error": null
+    }
+  ],
+  "iterations": [
+    {
+      "iteration": 1,
+      "reviewer_architecture_before": [
+        {
+          "persona_name": "Cache Invalidation Auditor",
+          "focus_areas": [
+            "Cache key consistency between read/write/delete paths",
+            "Stale-read risks after account updates",
+            "Cross-file usage of account cache keys"
+          ],
+          "specific_checks": [
+            "Verify the cache key prefix used in `cache.del` matches the prefix used wherever account records are cached/read (likely in `src/cache/accountCache.ts` and any callers).",
+            "Check whether this change introduces a singular/plural key mismatch (`account:` vs `accounts:`) that would prevent invalidation after `updateAccount`.",
+            "Confirm update-path behavior: after `db.users.update(accountId, data)`, subsequent reads should miss cache and fetch fresh data.",
+            "Review for related cache operations (`get`, `set`, `del`) using account IDs to ensure naming is uniform across the repository.",
+            "Recommend or verify a regression test covering: populate cache for an account, call `updateAccount`, then assert stale cached value is not returned."
+          ],
+          "source_skills": [
+            "cache-invalidation-audit-for-update-path-stale-read-bugs"
+          ],
+          "risk_profile": [
+            "Stale reads caused by failed cache invalidation on mutation paths",
+            "Silent data consistency bugs due to cache key naming drift"
+          ]
+        },
+        {
+          "persona_name": "Data Access and Persistence Path Reviewer",
+          "focus_areas": [
+            "Interaction between cache layer and database update flow",
+            "Correctness of account/user domain mapping",
+            "Potential blast radius of cache invalidation bug"
+          ],
+          "specific_checks": [
+            "Inspect whether `updateAccount` writes through `db.users.update`, and verify the account/user naming is intentional rather than a domain mismatch.",
+            "Check if other caches (`userCache.ts`, Redis helpers) use similar key conventions that should stay aligned.",
+            "Assess whether failed invalidation could affect authenticated/profile/admin routes that may read cached account data.",
+            "Look for missing error-handling or transactional expectations around DB update succeeding while cache deletion targets the wrong key."
+          ],
+          "source_skills": [
+            "cache-invalidation-audit-for-update-path-stale-read-bugs"
+          ],
+          "risk_profile": [
+            "Post-update inconsistency between persisted state and cached state",
+            "Route-level exposure of stale account data after successful writes"
+          ]
+        }
+      ],
+      "pruned_reviewer_architecture": [
+        {
+          "persona_name": "Cache Consistency and Invalidation Reviewer",
+          "focus_areas": [
+            "Cache key consistency between read/write/delete paths",
+            "Stale-read risks after account updates",
+            "Cross-file usage of account/user cache keys",
+            "Interaction between cache layer and database update flow"
+          ],
+          "specific_checks": [
+            "Verify the cache key prefix used in `cache.del` matches the prefix used wherever account records are cached/read, including likely locations such as `src/cache/accountCache.ts` and related callers.",
+            "Check for singular/plural or domain naming mismatches (for example `account:` vs `accounts:` or account vs user) that would prevent invalidation after `updateAccount`.",
+            "Confirm update-path behavior: after `db.users.update(accountId, data)`, subsequent reads should miss cache and fetch fresh data.",
+            "Review related cache operations (`get`, `set`, `del`) using account IDs across the repository to ensure naming is uniform.",
+            "Inspect whether `updateAccount` writing through `db.users.update` is intentional and consistent with the account/user domain model.",
+            "Assess whether failed invalidation could expose stale data in downstream routes such as authenticated, profile, or admin reads.",
+            "Look for missing error-handling or consistency expectations when the DB update succeeds but cache deletion targets the wrong key.",
+            "Recommend or verify a regression test: populate cache for an account, call `updateAccount`, then assert stale cached value is not returned."
+          ],
+          "source_skills": [
+            "cache-invalidation-audit-for-update-path-stale-read-bugs"
+          ],
+          "risk_profile": [
+            "Stale reads caused by failed cache invalidation on mutation paths",
+            "Silent data consistency bugs due to cache key naming drift",
+            "Post-update inconsistency between persisted state and cached state",
+            "Route-level exposure of stale account data after successful writes"
+          ]
+        }
+      ],
+      "stress_profiles": {
+        "Cache Consistency and Invalidation Reviewer": {
+          "hypothetical_bugs": [
+            "Cache invalidation key mismatch: `updateAccount` now deletes `accounts:${accountId}` while cached reads/writes may still use `account:${accountId}`, causing stale account data to persist after successful updates.",
+            "Cross-file domain/key drift between account and user paths: because the update goes through `db.users.update(accountId, data)`, related readers or cache helpers may be using `user:${id}` or `account:${id}` keys instead of `accounts:${id}`, so this change may invalidate nothing on the actual hot read path.",
+            "Missing regression coverage for post-update freshness: if cache deletion silently targets the wrong key, routes that read profile/auth/admin account data may continue serving stale cached values even though the DB write succeeded, and no error will surface because `cache.del` on a nonexistent key typically succeeds."
+          ]
+        }
+      },
+      "draft_review_summaries": {
+        "Cache Consistency and Invalidation Reviewer": "1 comments (High:1). This change introduces a cache invalidation bug. The repository file provided shows account records are cached under `account:${accountId}`, but the mutation path now deletes `accounts:${accountId}`. As a result, `update"
+      },
+      "peer_finalized_review_summaries": {
+        "Cache Consistency and Invalidation Reviewer": "1 comments (High:1). The review identified a high-severity cache consistency bug: the update path invalidates `accounts:${accountId}` while the read path uses `account:${accountId}`. This leaves stale account data in cache after successful u"
+      },
+      "final_synthesized_review_summary": "1 comments (High:1). The review found one high-severity logic issue in `src/cache/accountCache.ts`: the account update path invalidates a different cache key than the read path uses. This silently breaks cache invalidation and can serve stal",
+      "fitness_score": 0.95,
+      "deterministic_penalties": [],
+      "evaluator_comments": "This is a strong review: it identifies a concrete, plausible bug, ties it to a specific file/line, explains the stale-cache impact clearly, and proposes an actionable fix with sample code and a regression test. The only thing preventing a perfect score is that the evaluation is based on the review text alone, so it does not independently verify whether line 13 is the exact invalidation site or whether there are any additional cache write paths that should also be unified under the helper.",
+      "mutation_applied": false,
+      "mutation_reason": "",
+      "mutation_delta": null
+    }
+  ],
+  "outputs": {
+    "llm_call_count": 9,
+    "llm_calls": [
+      {
+        "stage": "differentiate",
+        "prompt_tokens": 693,
+        "completion_tokens": 425,
+        "total_tokens": 1118
+      },
+      {
+        "stage": "prune_reviewers",
+        "prompt_tokens": 746,
+        "completion_tokens": 357,
+        "total_tokens": 1103
+      },
+      {
+        "stage": "stress_profile",
+        "prompt_tokens": 586,
+        "completion_tokens": 180,
+        "total_tokens": 766
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 917,
+        "completion_tokens": 55,
+        "total_tokens": 972
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 1279,
+        "completion_tokens": 385,
+        "total_tokens": 1664
+      },
+      {
+        "stage": "draft_review_parse",
+        "prompt_tokens": 1371,
+        "completion_tokens": 351,
+        "total_tokens": 1722
+      },
+      {
+        "stage": "peer_finalize",
+        "prompt_tokens": 785,
+        "completion_tokens": 467,
+        "total_tokens": 1252
+      },
+      {
+        "stage": "synthesize_review",
+        "prompt_tokens": 995,
+        "completion_tokens": 433,
+        "total_tokens": 1428
+      },
+      {
+        "stage": "fitness_evaluate",
+        "prompt_tokens": 663,
+        "completion_tokens": 113,
+        "total_tokens": 776
+      }
+    ],
+    "score_history": [
+      0.95
+    ],
+    "final_comment_count": 1
+  }
+}

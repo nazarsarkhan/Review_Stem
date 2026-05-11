@@ -1,0 +1,63 @@
+{
+  "case_id": "missing_auth_tests",
+  "description": "Security-critical authentication endpoints lack test coverage",
+  "diff_file": "benchmark_repo/src/routes/auth.ts",
+  "expected_issues": [
+    {
+      "severity": "Medium",
+      "category": "Testing",
+      "issue_type": "Missing Test Coverage",
+      "description": "Login endpoint is security-critical but has no tests. Should test valid login, invalid credentials, missing fields, SQL injection in email, timing attacks, and token generation.",
+      "location": "benchmark_repo/src/routes/auth.ts:9-36",
+      "impact": "Authentication bugs may go undetected until production, security vulnerabilities untested",
+      "suggested_fix": "Add comprehensive test suite covering:\n1. Valid login returns token\n2. Invalid password returns 401\n3. Non-existent user returns 401\n4. Missing email/password returns 400\n5. SQL injection in email is handled safely\n6. Token contains correct user data\n7. Token expires after 24h"
+    },
+    {
+      "severity": "Medium",
+      "category": "Testing",
+      "issue_type": "Missing Test Coverage",
+      "description": "Password reset endpoint is security-critical but has no tests. Should test valid reset, invalid token, expired token, missing fields, and token reuse prevention.",
+      "location": "benchmark_repo/src/routes/auth.ts:39-62",
+      "impact": "Password reset vulnerabilities may allow account takeover",
+      "suggested_fix": "Add test suite covering:\n1. Valid reset token updates password\n2. Invalid reset token returns 401\n3. Expired token returns 401\n4. Missing fields return 400\n5. Token cannot be reused after reset\n6. New password is properly hashed"
+    }
+  ],
+  "expected_tests": [
+    {
+      "test_type": "integration",
+      "description": "Valid login should return token and user data",
+      "test_code": "describe('POST /auth/login', () => {\n  it('returns token for valid credentials', async () => {\n    const user = await createUser({ email: 'test@example.com', password: 'password123' });\n    const res = await request(app)\n      .post('/auth/login')\n      .send({ email: 'test@example.com', password: 'password123' })\n      .expect(200);\n    expect(res.body.token).toBeDefined();\n    expect(res.body.user).toMatchObject({ id: user.id, email: 'test@example.com' });\n  });\n});"
+    },
+    {
+      "test_type": "security",
+      "description": "Invalid credentials should return 401",
+      "test_code": "it('returns 401 for invalid password', async () => {\n  await createUser({ email: 'test@example.com', password: 'correct' });\n  await request(app)\n    .post('/auth/login')\n    .send({ email: 'test@example.com', password: 'wrong' })\n    .expect(401);\n});\n\nit('returns 401 for non-existent user', async () => {\n  await request(app)\n    .post('/auth/login')\n    .send({ email: 'nobody@example.com', password: 'password' })\n    .expect(401);\n});"
+    },
+    {
+      "test_type": "security",
+      "description": "SQL injection in email should be handled safely",
+      "test_code": "it('handles SQL injection in email', async () => {\n  const res = await request(app)\n    .post('/auth/login')\n    .send({ email: \"'; DROP TABLE users; --\", password: 'password' })\n    .expect(401);\n  // Verify users table still exists\n  const users = await db.users.findAll();\n  expect(users).toBeDefined();\n});"
+    },
+    {
+      "test_type": "integration",
+      "description": "Password reset with valid token should succeed",
+      "test_code": "describe('POST /auth/reset-password', () => {\n  it('resets password with valid token', async () => {\n    const user = await createUser({ email: 'test@example.com', password: 'old' });\n    const resetToken = await generateResetToken(user.id);\n    await request(app)\n      .post('/auth/reset-password')\n      .send({ email: 'test@example.com', resetToken, newPassword: 'new123' })\n      .expect(200);\n    // Verify can login with new password\n    await request(app)\n      .post('/auth/login')\n      .send({ email: 'test@example.com', password: 'new123' })\n      .expect(200);\n  });\n});"
+    },
+    {
+      "test_type": "security",
+      "description": "Expired reset token should be rejected",
+      "test_code": "it('rejects expired reset token', async () => {\n  const user = await createUser({ email: 'test@example.com', password: 'old' });\n  const expiredToken = await generateResetToken(user.id, { expiresIn: -1000 });\n  await request(app)\n    .post('/auth/reset-password')\n    .send({ email: 'test@example.com', resetToken: expiredToken, newPassword: 'new' })\n    .expect(401);\n});"
+    },
+    {
+      "test_type": "security",
+      "description": "Reset token cannot be reused",
+      "test_code": "it('prevents token reuse', async () => {\n  const user = await createUser({ email: 'test@example.com', password: 'old' });\n  const resetToken = await generateResetToken(user.id);\n  // First reset succeeds\n  await request(app)\n    .post('/auth/reset-password')\n    .send({ email: 'test@example.com', resetToken, newPassword: 'new1' })\n    .expect(200);\n  // Second reset with same token fails\n  await request(app)\n    .post('/auth/reset-password')\n    .send({ email: 'test@example.com', resetToken, newPassword: 'new2' })\n    .expect(401);\n});"
+    }
+  ],
+  "related_files": [],
+  "concept_groups": [
+    ["authentication", "login", "password", "credentials"],
+    ["testing", "test coverage", "security testing"],
+    ["jwt", "token", "session"]
+  ]
+}
