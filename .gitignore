@@ -38,7 +38,16 @@ openspace_repo/
 FINAL_REPORT.md
 SUBMISSION_CHECKLIST.md
 WRITEUP_DRAFT.md
+WRITEUP.md
+TRAINING_RESULTS.md
+EVOLUTION_SUMMARY.md
 INTEGRATION_COMPLETE.md
 OPENSPACE_SUMMARY.md
 QUICKSTART_OPENSPACE.md
 docs/
+
+# Temporary test files
+test_openspace.py
+
+# Migration scripts (one-time use)
+scripts/migrate_skills_to_openspace.py
