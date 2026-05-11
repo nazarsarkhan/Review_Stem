@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 from pathlib import Path
 from typing import Any, List, Optional, Type, TypeVar
@@ -9,11 +8,11 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from .config import ReviewStemConfig
+from .logger import logger
 
 load_dotenv(Path.cwd() / ".env")
 load_dotenv(Path.home() / ".reviewstem" / ".env")
 
-logger = logging.getLogger("ReviewStem")
 T = TypeVar("T", bound=BaseModel)
 
 

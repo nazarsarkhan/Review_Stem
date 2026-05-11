@@ -1,10 +1,8 @@
-import logging
 from typing import List
 
 from .llm_client import LLMClient
+from .logger import logger
 from .schemas import GenomeCluster, LearnedTrait, SelectedSkill
-
-logger = logging.getLogger("ReviewStem")
 
 
 class StemCell:

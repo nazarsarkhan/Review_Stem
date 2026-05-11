@@ -1,13 +1,11 @@
 import json
-import logging
 from pathlib import Path
 import re
 from typing import List
 
+from .logger import logger
 from .schemas import LearnedTrait, SelectedSkill
 from .skill_evolution import SkillEvolutionEngine
-
-logger = logging.getLogger("ReviewStem")
 
 
 class Epigenetics:

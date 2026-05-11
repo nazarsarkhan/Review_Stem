@@ -1,11 +1,9 @@
-import logging
 from pathlib import Path
 import re
 
 from .llm_client import LLMClient
+from .logger import logger
 from .schemas import DeterministicPenalty, EvaluationScore, ReviewOutput
-
-logger = logging.getLogger("ReviewStem")
 
 
 INCOMPLETE_SQL_PARAMETER_PATTERN = re.compile(r"db\.query\([^`]*\$1['\"]\s*,\s*\)")
@@ -30,12 +28,12 @@ class FitnessFunction:
                 full_path.relative_to(self.repo_path)
             except ValueError:
                 logger.warning("Sandbox detected out-of-repo file: %s", comment.filepath)
-                penalties.append(_penalty("out_of_repo_file", 0.2, comment.filepath, comment.line_number, "Finding references a path outside the repository."))
+                penalties.append(DeterministicPenalty(code="out_of_repo_file", amount=0.2, filepath=comment.filepath, line_number=comment.line_number, reason="Finding references a path outside the repository."))
                 continue
 
             if not full_path.exists():
                 logger.warning("Sandbox detected hallucinated file: %s", comment.filepath)
-                penalties.append(_penalty("hallucinated_file", 0.2, comment.filepath, comment.line_number, "Finding references a file that does not exist."))
+                penalties.append(DeterministicPenalty(code="hallucinated_file", amount=0.2, filepath=comment.filepath, line_number=comment.line_number, reason="Finding references a file that does not exist."))
                 continue
 
             try:
@@ -49,7 +47,7 @@ class FitnessFunction:
                     comment.filepath,
                     comment.line_number,
                 )
-                penalties.append(_penalty("invalid_line", 0.2, comment.filepath, comment.line_number, "Finding references a line outside the file."))
+                penalties.append(DeterministicPenalty(code="invalid_line", amount=0.2, filepath=comment.filepath, line_number=comment.line_number, reason="Finding references a line outside the file."))
 
             if INCOMPLETE_SQL_PARAMETER_PATTERN.search(comment.suggested_fix):
                 logger.warning(
@@ -57,20 +55,20 @@ class FitnessFunction:
                     comment.filepath,
                     comment.line_number,
                 )
-                penalties.append(_penalty("incomplete_sql_fix", 0.2, comment.filepath, comment.line_number, "Suggested SQL parameterization fix is incomplete."))
+                penalties.append(DeterministicPenalty(code="incomplete_sql_fix", amount=0.2, filepath=comment.filepath, line_number=comment.line_number, reason="Suggested SQL parameterization fix is incomplete."))
 
             if self.changed_files and comment.filepath not in self.changed_files:
-                penalties.append(_penalty("outside_changed_files", 0.05, comment.filepath, comment.line_number, "Finding is grounded in the repo but outside the changed files."))
+                penalties.append(DeterministicPenalty(code="outside_changed_files", amount=0.05, filepath=comment.filepath, line_number=comment.line_number, reason="Finding is grounded in the repo but outside the changed files."))
 
             if _is_vague(comment.issue_description):
-                penalties.append(_penalty("vague_finding", 0.1, comment.filepath, comment.line_number, "Finding description is too short or vague."))
+                penalties.append(DeterministicPenalty(code="vague_finding", amount=0.1, filepath=comment.filepath, line_number=comment.line_number, reason="Finding description is too short or vague."))
 
             if comment.severity.lower() in {"high", "critical"} and len(comment.suggested_fix.strip()) < 20:
-                penalties.append(_penalty("missing_high_severity_fix", 0.1, comment.filepath, comment.line_number, "High-severity finding lacks a concrete suggested fix."))
+                penalties.append(DeterministicPenalty(code="missing_high_severity_fix", amount=0.1, filepath=comment.filepath, line_number=comment.line_number, reason="High-severity finding lacks a concrete suggested fix."))
 
             key = (comment.filepath, comment.line_number, _normalize_issue(comment.issue_description))
             if key in seen_findings:
-                penalties.append(_penalty("duplicate_finding", 0.05, comment.filepath, comment.line_number, "Duplicate finding appears more than once."))
+                penalties.append(DeterministicPenalty(code="duplicate_finding", amount=0.05, filepath=comment.filepath, line_number=comment.line_number, reason="Duplicate finding appears more than once."))
             seen_findings.add(key)
 
         prompt = f"""
@@ -101,10 +99,6 @@ class FitnessFunction:
 
         logger.info("Fitness Score: %s - Feedback: %s", evaluation.score, evaluation.feedback)
         return evaluation
-
-
-def _penalty(code: str, amount: float, filepath: str | None, line_number: int | None, reason: str) -> DeterministicPenalty:
-    return DeterministicPenalty(code=code, amount=amount, filepath=filepath, line_number=line_number, reason=reason)
 
 
 def _is_vague(text: str) -> bool:

@@ -1,10 +1,8 @@
-import logging
 from typing import List
 
 from .llm_client import LLMClient
+from .logger import logger
 from .schemas import EvaluationScore, GenomeCluster, ReviewGenome, ReviewOutput
-
-logger = logging.getLogger("ReviewStem")
 
 
 class MutationEngine:

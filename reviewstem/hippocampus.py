@@ -1,8 +1,7 @@
-import logging
 import os
 from pathlib import Path
 
-logger = logging.getLogger("ReviewStem")
+from .logger import logger
 
 
 class Hippocampus:

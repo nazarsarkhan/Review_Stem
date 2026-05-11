@@ -1,16 +1,14 @@
 """Persistent skill learning and evolution across review sessions."""
 
 import json
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from .logger import logger
 from .schemas import ReviewGenome
-
-logger = logging.getLogger("ReviewStem")
 
 
 class LearnedSkill(BaseModel):

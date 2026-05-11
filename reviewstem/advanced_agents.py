@@ -1,9 +1,6 @@
-import logging
-
 from .llm_client import LLMClient
+from .logger import logger
 from .schemas import GenomeCluster, ReviewGenome, StressTestProfile
-
-logger = logging.getLogger("ReviewStem")
 
 
 class NeuralPruner:

@@ -1,8 +1,7 @@
-import logging
 import os
 from dataclasses import dataclass, replace
 
-logger = logging.getLogger("ReviewStem")
+from .logger import logger
 
 
 def get_int_env(name: str, default: int) -> int:

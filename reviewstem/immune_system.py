@@ -1,10 +1,8 @@
-import logging
 from typing import List
 
 from .llm_client import LLMClient
+from .logger import logger
 from .schemas import ReviewOutput
-
-logger = logging.getLogger("ReviewStem")
 
 
 class ImmuneSystem:

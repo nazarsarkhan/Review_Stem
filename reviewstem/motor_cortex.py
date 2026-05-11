@@ -1,5 +1,4 @@
 import json
-import logging
 from pathlib import Path
 from typing import List
 
@@ -8,9 +7,8 @@ from pydantic import BaseModel, Field
 
 from .config import ReviewStemConfig
 from .llm_client import LLMClient
+from .logger import logger
 from .schemas import ReviewGenome, ReviewOutput, StressTestProfile, ToolUseEvent
-
-logger = logging.getLogger("ReviewStem")
 
 
 class ReadFileTool(BaseModel):
@@ -142,9 +140,6 @@ Instructions:
             len(final_output.comments),
         )
         return final_output
-
-    def _read_file(self, filepath: str) -> str:
-        return self._read_file_event(filepath, "unknown", 0)[0]
 
     def _read_file_event(self, filepath: str, reviewer: str, iteration: int) -> tuple[str, ToolUseEvent]:
         full_path = (self.repo_path / filepath).resolve()

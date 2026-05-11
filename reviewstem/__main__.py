@@ -27,6 +27,7 @@ from .fitness_function import FitnessFunction
 from .hippocampus import Hippocampus
 from .immune_system import ImmuneSystem
 from .llm_client import LLMClient
+from .logger import logger
 from .motor_cortex import MotorCortex
 from .mutation_engine import MutationEngine
 from .openspace_integration import (
@@ -56,7 +57,6 @@ logging.basicConfig(
     datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True)],
 )
-logger = logging.getLogger("ReviewStem")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 

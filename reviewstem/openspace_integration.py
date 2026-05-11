@@ -6,7 +6,6 @@ and OpenSpace's skill learning framework.
 """
 
 import json
-import logging
 from pathlib import Path
 from typing import List, Optional
 
@@ -18,14 +17,13 @@ from openspace.skill_engine.types import (
 )
 
 from .llm_client import LLMClient
+from .logger import logger
 from .schemas import (
     DeterministicPenalty,
     LearnedTrait,
     ReviewOutput,
     SelectedSkill,
 )
-
-logger = logging.getLogger("ReviewStem")
 
 
 class ReviewStemSkillEngine:
