@@ -1,21 +1,22 @@
 # ReviewStem Specialization State
 
-- Run: `sql_injection-561ff6a264`
+- Run: `sql_injection-7a14e090e2`
 - Mode: `benchmark`
 - Case: `sql_injection`
 - Model: `gpt-5.4`
 - Target score: `0.9`
-- Stop reason: target_score_met: 0.97 >= 0.90
+- Stop reason: target_score_met: 0.95 >= 0.90
 
 ## Selected Skills
-- `SQL Injection and Unsafe Query Construction Review` score=23.23: Matched skill_name: query, trigger: query, risk_profile: query, string, context_plan: query, string, checklist: function, query, string, test_templates: query, source_case: sql_injection
-- `Backend API Swallowed Error Review` score=15.03: Matched trigger: async, import, risk_profile: async, context_plan: async, middleware, return, checklist: async, test_templates: async
-- `Low-Context PR Triage and Repository Validation` score=9.21: Matched trigger: diff, risk_profile: diff, context_plan: diff, checklist: diff
-- `Cache Invalidation Audit for Update-Path Stale-Read Bugs` score=7.33: Matched skill_name: cache, trigger: cache, risk_profile: cache, context_plan: cache, diff, checklist: cache, return, test_templates: cache, return
-- `Admin Route Authentication/Authorization Review` score=6.42: Matched skill_name: admin, trigger: admin, middleware, routes, risk_profile: admin, auth, middleware, routes, context_plan: admin, middleware, checklist: admin, middleware, test_templates: admin, middleware
+- `SQL Injection and DB Query Correctness Reviewer (Learned)` score=29.24: Matched skill_name: query, trigger: src, users, risk_profile: query, string, context_plan: src, users, checklist: function, getuserbyname, name, query, string, source_case: sql_injection
+- `Async Import Endpoint Reliability Reviewer (Learned)` score=20.74: Matched skill_name: async, import, trigger: async, risk_profile: async, context_plan: async, import, checklist: await, import, result
+- `User Cache Correctness, Security & Consistency Reviewer (Learned)` score=15.23: Matched skill_name: cache, trigger: cache, risk_profile: auth, cache, profile, context_plan: cache, checklist: auth, cache, diff, function, middleware
+- `Express Route Security, API Contract, and Serialization Reviewer (Learned)` score=13.12: Matched trigger: posts, risk_profile: async, context_plan: async, posts, checklist: async, auth, diff, json, middleware
+- `Route Exposure and Auth Pattern Reviewer (Learned)` score=12.13: Matched skill_name: auth, trigger: auth, middleware, profile, routes, src, risk_profile: admin, auth, middleware, routes, context_plan: auth, middleware, profile, routes, src, checklist: auth, middleware, profile
 
 ## Iterations
-- Pass 1: score=0.97, reviewers=1, mutation=no
+- Pass 1: score=0.95, reviewers=1, mutation=no
 
 ## Tool Use
-- No read_file tool calls recorded.
+- Pass 1 `User Lookup SQL Injection, Query Correctness, and Security Regression Reviewer` read `src/db/users.ts` (ok, 193 chars)
+- Pass 1 `User Lookup SQL Injection, Query Correctness, and Security Regression Reviewer` read `src/db/connection.ts` (failed: [Errno 2] No such file or directory: 'C:\\Users\\nazar\\Desktop\\Uni\\Projects\\JB_internships\\Review_Stem\\benchmark_repo\\src\\db\\connection.ts', 0 chars)

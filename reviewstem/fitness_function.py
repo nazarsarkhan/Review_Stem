@@ -80,11 +80,14 @@ class FitnessFunction:
         {review.model_dump_json(indent=2)}
 
         Criteria:
-        - Accuracy: Are the issues real?
-        - Actionability: Are the suggested fixes concrete?
+        - Accuracy: Are the issues real and correctly identified?
+        - Actionability: Are the suggested fixes concrete and implementable?
         - Completeness: Are suggested fixes complete enough to apply?
         - Precision: Does it point to exact files and lines?
         - Grounding: Is it based on the actual code, or is it generic advice?
+        - Test Coverage: Are test cases suggested to verify fixes and prevent regression?
+        - Security Depth: Does it identify all security vulnerabilities, not just obvious ones?
+        - Comprehensiveness: Does it cover multiple issue categories (security, performance, correctness)?
 
         Provide a single score and short constructive feedback.
         """

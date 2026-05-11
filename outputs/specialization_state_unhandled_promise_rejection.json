@@ -1,0 +1,605 @@
+{
+  "run_id": "unhandled_promise_rejection-3087d4765b",
+  "mode": "benchmark",
+  "case_id": "unhandled_promise_rejection",
+  "timestamp": "2026-05-11T18:08:14+00:00",
+  "target_score": 0.9,
+  "max_iterations": 2,
+  "model": "gpt-5.4",
+  "stop_reason": "target_score_met: 0.93 >= 0.90",
+  "environment": {
+    "changed_files": [
+      "src/services/email.ts"
+    ],
+    "diff_summary": "1 changed files, +19/-0, signals: database/query, async/error",
+    "repo_map_summary": "package.json\nREADME.md\n    src/\n        index.ts\n        cache/\n            accountCache.ts\n            redis.ts\n            userCache.ts\n        db/\n            index.ts\n            orders.ts\n            users.ts\n        middleware/\n            auth.ts\n        routes/\n            admin.ts\n            auth.ts\n            import.ts\n... (9 more entries)",
+    "selected_benchmark_case": "unhandled_promise_rejection",
+    "diff_was_real": true,
+    "repo_path": "C:\\Users\\nazar\\Desktop\\Uni\\Projects\\JB_internships\\Review_Stem\\benchmark_repo"
+  },
+  "selected_skills": [
+    {
+      "skill_name": "backend-api-swallowed-error-review",
+      "trigger_context": "Use when a PR modifies backend/API route handlers, import/process endpoints,",
+      "trait_instruction": "Use when a PR modifies backend/API route handlers, import/process endpoints,",
+      "total_score": 2.0,
+      "matched_terms": [],
+      "matched_fields": {},
+      "reason": "Matched with score 2.00",
+      "source_case": null,
+      "success_score": 0.0,
+      "fallback": false,
+      "risk_profile": [],
+      "context_plan": [],
+      "checklist": [],
+      "test_templates": []
+    },
+    {
+      "skill_name": "error-handling-review",
+      "trigger_context": "Use when a PR modifies error handling, async operations, resource management, or error response logic.",
+      "trait_instruction": "Use when a PR modifies error handling, async operations, resource management, or error response logic.",
+      "total_score": 2.0,
+      "matched_terms": [],
+      "matched_fields": {},
+      "reason": "Matched with score 2.00",
+      "source_case": null,
+      "success_score": 0.0,
+      "fallback": false,
+      "risk_profile": [],
+      "context_plan": [],
+      "checklist": [],
+      "test_templates": []
+    }
+  ],
+  "initial_reviewer_genomes": [
+    {
+      "persona_name": "Async Error Handling Reviewer",
+      "focus_areas": [
+        "Async failure paths in service-layer code",
+        "Propagation vs swallowing of infrastructure errors",
+        "Null/undefined handling around database lookups",
+        "Caller-visible reliability risks from flaky external dependencies"
+      ],
+      "specific_checks": [
+        "Verify errors from email delivery are either intentionally propagated with clear semantics or handled with explicit retry/logging behavior.",
+        "Check that database lookup failures and 'user not found' cases are handled before dereferencing user.email.",
+        "Review whether introducing random transient failure in the email client creates nondeterministic behavior in production code or tests.",
+        "Confirm the service contract documents what happens when email sending fails after a successful user lookup.",
+        "Look for missing contextual error wrapping that would make operational debugging difficult."
+      ],
+      "source_skills": [
+        "error-handling-review",
+        "backend-api-swallowed-error-review"
+      ],
+      "risk_profile": [
+        "Unhandled async exceptions from external service calls",
+        "Potential null dereference from db.users.findById result",
+        "Ambiguous failure semantics for downstream callers",
+        "Operational instability from transient dependency failures"
+      ]
+    },
+    {
+      "persona_name": "Service Integration & Data Contract Reviewer",
+      "focus_areas": [
+        "Boundary between db layer and service layer",
+        "Assumptions about user schema and returned records",
+        "Side-effect safety for welcome-email workflows",
+        "Testability of newly added service module"
+      ],
+      "specific_checks": [
+        "Validate that db.users.findById exists in the repository API and returns an object with a guaranteed email field.",
+        "Check whether sendWelcomeEmail should guard against invalid userId, missing email, or malformed addresses.",
+        "Assess whether the inline emailClient should be injectable/mockable for tests rather than hard-coded in module scope.",
+        "Recommend tests for success, missing user, and email-provider failure scenarios.",
+        "Ensure the new service aligns with existing project patterns for services, db access, and error behavior."
+      ],
+      "source_skills": [
+        "error-handling-review"
+      ],
+      "risk_profile": [
+        "Contract mismatch between service and db layer",
+        "Insufficient validation of persisted data before side effects",
+        "Low test coverage for new async integration logic"
+      ]
+    }
+  ],
+  "reviewer_skill_map": {
+    "Async Error Handling Reviewer": [
+      "backend-api-swallowed-error-review",
+      "error-handling-review"
+    ],
+    "Service Integration & Data Contract Reviewer": [
+      "error-handling-review"
+    ]
+  },
+  "tool_use": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "reviewer_architecture_before": [
+        {
+          "persona_name": "Async Error Handling Reviewer",
+          "focus_areas": [
+            "Async failure paths in service-layer code",
+            "Propagation vs swallowing of infrastructure errors",
+            "Null/undefined handling around database lookups",
+            "Caller-visible reliability risks from flaky external dependencies"
+          ],
+          "specific_checks": [
+            "Verify errors from email delivery are either intentionally propagated with clear semantics or handled with explicit retry/logging behavior.",
+            "Check that database lookup failures and 'user not found' cases are handled before dereferencing user.email.",
+            "Review whether introducing random transient failure in the email client creates nondeterministic behavior in production code or tests.",
+            "Confirm the service contract documents what happens when email sending fails after a successful user lookup.",
+            "Look for missing contextual error wrapping that would make operational debugging difficult."
+          ],
+          "source_skills": [
+            "error-handling-review",
+            "backend-api-swallowed-error-review"
+          ],
+          "risk_profile": [
+            "Unhandled async exceptions from external service calls",
+            "Potential null dereference from db.users.findById result",
+            "Ambiguous failure semantics for downstream callers",
+            "Operational instability from transient dependency failures"
+          ]
+        },
+        {
+          "persona_name": "Service Integration & Data Contract Reviewer",
+          "focus_areas": [
+            "Boundary between db layer and service layer",
+            "Assumptions about user schema and returned records",
+            "Side-effect safety for welcome-email workflows",
+            "Testability of newly added service module"
+          ],
+          "specific_checks": [
+            "Validate that db.users.findById exists in the repository API and returns an object with a guaranteed email field.",
+            "Check whether sendWelcomeEmail should guard against invalid userId, missing email, or malformed addresses.",
+            "Assess whether the inline emailClient should be injectable/mockable for tests rather than hard-coded in module scope.",
+            "Recommend tests for success, missing user, and email-provider failure scenarios.",
+            "Ensure the new service aligns with existing project patterns for services, db access, and error behavior."
+          ],
+          "source_skills": [
+            "error-handling-review"
+          ],
+          "risk_profile": [
+            "Contract mismatch between service and db layer",
+            "Insufficient validation of persisted data before side effects",
+            "Low test coverage for new async integration logic"
+          ]
+        }
+      ],
+      "pruned_reviewer_architecture": [
+        {
+          "persona_name": "Service Reliability & Error Semantics Reviewer",
+          "focus_areas": [
+            "Async failure paths in service-layer code",
+            "Propagation vs swallowing of infrastructure errors",
+            "Null/undefined handling around database lookups",
+            "Caller-visible reliability risks from flaky external dependencies",
+            "Side-effect safety for welcome-email workflows"
+          ],
+          "specific_checks": [
+            "Verify errors from email delivery are either intentionally propagated with clear semantics or handled with explicit retry/logging behavior.",
+            "Check that database lookup failures and 'user not found' cases are handled before dereferencing user.email.",
+            "Review whether introducing random transient failure in the email client creates nondeterministic behavior in production code or tests.",
+            "Confirm the service contract documents what happens when email sending fails after a successful user lookup.",
+            "Look for missing contextual error wrapping that would make operational debugging difficult.",
+            "Check whether sendWelcomeEmail should guard against invalid userId, missing email, or malformed addresses."
+          ],
+          "source_skills": [
+            "error-handling-review",
+            "backend-api-swallowed-error-review"
+          ],
+          "risk_profile": [
+            "Unhandled async exceptions from external service calls",
+            "Potential null dereference from db.users.findById result",
+            "Ambiguous failure semantics for downstream callers",
+            "Operational instability from transient dependency failures",
+            "Insufficient validation of persisted data before side effects"
+          ]
+        },
+        {
+          "persona_name": "Integration Contract & Architecture Reviewer",
+          "focus_areas": [
+            "Boundary between db layer and service layer",
+            "Assumptions about user schema and returned records",
+            "Repository/API contract correctness",
+            "Testability and dependency injection of the new service module",
+            "Alignment with existing project service patterns"
+          ],
+          "specific_checks": [
+            "Validate that db.users.findById exists in the repository API and returns an object with a guaranteed email field.",
+            "Assess whether the inline emailClient should be injectable/mockable for tests rather than hard-coded in module scope.",
+            "Recommend tests for success, missing user, and email-provider failure scenarios.",
+            "Ensure the new service aligns with existing project patterns for services, db access, and error behavior.",
+            "Check for hidden coupling between service logic and persistence schema that could break if db return shapes change."
+          ],
+          "source_skills": [
+            "error-handling-review"
+          ],
+          "risk_profile": [
+            "Contract mismatch between service and db layer",
+            "Schema/return-shape assumptions leaking into service logic",
+            "Low test coverage for new async integration logic",
+            "Reduced maintainability from hard-coded dependencies"
+          ]
+        }
+      ],
+      "stress_profiles": {
+        "Service Reliability & Error Semantics Reviewer": {
+          "hypothetical_bugs": [
+            "`db.users.findById(userId)` may return `null`/`undefined` or throw, but `user.email` is dereferenced unconditionally. This can cause a runtime crash with poor error semantics instead of a clear `user not found` / invalid userId path.",
+            "`emailClient.send()` introduces random transient failure (`Math.random() > 0.9`) and its exception is propagated without contextual wrapping, retry, or explicit contract. Callers may see nondeterministic failures after a successful lookup, making production behavior and tests flaky and operational debugging difficult.",
+            "No validation is performed on persisted user data before the side effect: `user.email` could be missing, null, or malformed. That can lead to sending with an invalid `to` field or throwing from the email layer in an ambiguous way, with no logging or explicit handling for welcome-email workflow safety."
+          ]
+        },
+        "Integration Contract & Architecture Reviewer": {
+          "hypothetical_bugs": [
+            "Repository contract mismatch: `db.users.findById` may not exist, may return `null`, or may return a partial record without a guaranteed `email` field. `sendWelcomeEmail` dereferences `user.email` unconditionally, so this can cause runtime failures or send attempts with `undefined` if the db/API contract differs from the service\u2019s assumption.",
+            "Hidden schema coupling in the service layer: the new service assumes the persistence return shape includes `email` directly on the user object. If the project\u2019s db layer returns domain models, selected columns, or nested shapes differently, this service breaks at the boundary and violates existing service/repository patterns.",
+            "Poor testability and inconsistent integration behavior due to hard-coded module-scope `emailClient`: it cannot be cleanly injected or mocked, making success, missing-user, and provider-failure scenarios harder to test. This also risks inconsistent error handling versus existing services, since provider errors are allowed to bubble directly with no explicit contract."
+          ]
+        }
+      },
+      "draft_review_summaries": {
+        "Service Reliability & Error Semantics Reviewer": "3 comments (High:2, Medium:1). This change introduces a welcome-email service with significant reliability and error-semantics gaps. The function assumes the user lookup always succeeds, dereferences `user.email` without null checks, performs no valid",
+        "Integration Contract & Architecture Reviewer": "3 comments (High:1, Medium:2). This change introduces a useful service, but the current implementation has a fragile boundary with the db layer and weak testability. The main concern is contract mismatch: `sendWelcomeEmail` assumes `db.users.findById`"
+      },
+      "peer_finalized_review_summaries": {
+        "Service Reliability & Error Semantics Reviewer": "2 comments (High:2). The main reliability issues are undefined service error semantics around user lookup and nondeterministic provider failure handling. `sendWelcomeEmail` currently assumes the repository always returns a valid user with an",
+        "Integration Contract & Architecture Reviewer": "4 comments (High:2, Medium:2). The main architectural risk in this change is an implicit, fragile contract across boundaries: the service assumes the repository always returns a valid user with a usable email, and it assumes the provider can be called"
+      },
+      "final_synthesized_review_summary": "2 comments (High:2). The main issues are reliability and error-contract gaps in `sendWelcomeEmail`. The service currently assumes user lookup always succeeds with a valid email and allows provider failures to surface without context, while r",
+      "fitness_score": 0.89,
+      "deterministic_penalties": [],
+      "evaluator_comments": "Strong review: the findings are specific, actionable, grounded in the described `sendWelcomeEmail` flow, and include concrete fixes plus useful regression tests. It does especially well on correctness, reliability, and testability. The main reason it is not higher is that it appears narrowly focused on error handling and determinism rather than demonstrating broader coverage across categories in the rubric (for example, no meaningful security, privacy, logging/PII, or performance considerations). Also, a few recommendations may be somewhat opinionated without full code context, such as validating `userId` at this layer or wrapping every error with generic `Error` instead of preserving typed/domain errors.",
+      "mutation_applied": true,
+      "mutation_reason": "Fitness 0.89 below target 0.90. Evaluator feedback: Strong review: the findings are specific, actionable, grounded in the described `sendWelcomeEmail` flow, and include concrete fixes plus useful regression tests. It does especially well on correctness, reliability, and testability. The main reason it is not higher is that it appears narrowly focused on error handling and determinism rather than demonstrating broader coverage across categories in the rubric (for example, no meaningful security, privacy, logging/PII, or performance considerations). Also, a few recommendations may be somewhat opinionated without full code context, such as validating `userId` at this layer or wrapping every error with generic `Error` instead of preserving typed/domain errors.",
+      "mutation_delta": {
+        "added_reviewers": [
+          "Architecture, Privacy & Testability Boundary Reviewer",
+          "Grounded Service Reliability & Error-Contract Reviewer"
+        ],
+        "removed_reviewers": [
+          "Integration Contract & Architecture Reviewer",
+          "Service Reliability & Error Semantics Reviewer"
+        ],
+        "changed_reviewer_names": [
+          "Integration Contract & Architecture Reviewer -> Architecture, Privacy & Testability Boundary Reviewer",
+          "Service Reliability & Error Semantics Reviewer -> Grounded Service Reliability & Error-Contract Reviewer"
+        ],
+        "changed_focus_areas": {},
+        "changed_specific_checks": {},
+        "changed_source_skills": {},
+        "changed_risk_areas": {}
+      }
+    },
+    {
+      "iteration": 2,
+      "reviewer_architecture_before": [
+        {
+          "persona_name": "Grounded Service Reliability & Error-Contract Reviewer",
+          "focus_areas": [
+            "Observed async failure paths in `src/services/email.ts` only",
+            "Grounded handling of repository lookup results and provider send failures",
+            "Service-level error semantics without inventing unsupported domain types",
+            "Deterministic behavior and testability of external email delivery integration",
+            "Validation only when justified by the visible function contract or surrounding code"
+          ],
+          "specific_checks": [
+            "Anchor every finding to code that is explicitly present in the diff or referenced failure summary; do not infer APIs, files, types, or behaviors not evidenced by the snippet/context.",
+            "Do not claim `db.users.findById` throws, returns null, or guarantees an `email` field unless the code or provided context supports that; instead phrase the risk conditionally: 'if the repository can return null/undefined...' or 'if lookup failures propagate...'.",
+            "Do not prescribe typed/domain errors, logging, retries, or contract changes unless the repository/service patterns are visible in the provided codebase context.",
+            "Verify whether `sendWelcomeEmail` dereferences `user.email` before checking that `user` exists; if so, report a concrete null/undefined dereference risk tied to that exact line.",
+            "Verify whether provider errors are rethrown raw or wrapped; if recommending wrapping, require preserving the original cause/context rather than replacing everything with a generic `Error` without rationale.",
+            "Flag nondeterminism only if the production path actually uses `Math.random()` or equivalent randomness; explicitly distinguish production behavior from test-only stubs.",
+            "Require suggested fixes to preserve determinism in tests by injecting or mocking the email client only if the client is currently hard-coded or otherwise difficult to control in tests.",
+            "When suggesting input validation for `userId`, mark it as optional unless the visible code shows this layer owns boundary validation; do not present it as a mandatory defect without evidence.",
+            "Check that suggested tests map directly to observed branches in the code: success path, missing user before dereference, invalid/missing email before send, and provider rejection after successful lookup.",
+            "Do not reference any file other than `src/services/email.ts` unless it is explicitly present in the review context, and do not cite line numbers unless they correspond to the provided snippet/diff."
+          ],
+          "source_skills": [
+            "error-handling-review",
+            "backend-api-swallowed-error-review"
+          ],
+          "risk_profile": [
+            "Unhandled async exceptions from external service calls",
+            "Potential null dereference from repository lookup result",
+            "Ambiguous failure semantics for downstream callers",
+            "Operational instability from nondeterministic dependency behavior",
+            "Over-prescriptive fixes that are not grounded in visible service contracts"
+          ]
+        },
+        {
+          "persona_name": "Architecture, Privacy & Testability Boundary Reviewer",
+          "focus_areas": [
+            "Service-to-repository and service-to-email-client boundary assumptions",
+            "PII exposure in error messages and logs around email addresses",
+            "Dependency injection/test seam quality for the email client",
+            "Completeness of regression tests across reliability and privacy concerns",
+            "Missing review categories previously under-covered: privacy/logging and architecture realism"
+          ],
+          "specific_checks": [
+            "Review only architecture and privacy concerns that can be grounded in `src/services/email.ts` and the provided findings; do not hallucinate broader project patterns or nonexistent modules.",
+            "Check whether suggested error messages include full recipient email addresses; if so, assess privacy/PII leakage risk and prefer userId or redacted email unless explicit logging/error conventions are shown.",
+            "Do not recommend logging sensitive data or adding logs unless the code context shows an established logging mechanism and sanitization pattern.",
+            "Assess whether the email client is module-scoped and hard-coded; if yes, recommend an injectable parameter or equivalent seam strictly for deterministic testing and isolation.",
+            "Do not assert that dependency injection is required by project architecture unless existing patterns are visible; frame it as a maintainability/testability improvement when grounded by the code.",
+            "Verify that test recommendations include negative assertions: provider client is not called when lookup fails or email is unusable, and no test relies on random failure behavior.",
+            "Require at least one test expectation about privacy-safe failures if the proposed fix includes contextual error messages, e.g. ensuring thrown messages do not expose full email addresses unless intentionally specified.",
+            "Check for incomplete fixes that wrap errors but discard original causes; if the language/runtime supports `cause`, recommend preserving it, otherwise require at minimum retaining actionable context without overstating implementation requirements.",
+            "Do not invent security issues unrelated to the visible code; only raise privacy/security findings directly tied to exposed email data, error propagation, or externally observable behavior in this service.",
+            "Ensure every recommendation distinguishes confirmed defects from contingent risks, especially around repository return shape and validation ownership."
+          ],
+          "source_skills": [
+            "error-handling-review"
+          ],
+          "risk_profile": [
+            "Contract mismatch between service and db layer",
+            "Schema/return-shape assumptions leaking into service logic",
+            "Low test coverage for async integration branches",
+            "Reduced maintainability from hard-coded dependencies",
+            "PII leakage through exception messages or logs",
+            "Hallucinated architectural requirements without code evidence"
+          ]
+        }
+      ],
+      "pruned_reviewer_architecture": [
+        {
+          "persona_name": "Service Reliability, Error-Contract & Testability Reviewer",
+          "focus_areas": [
+            "Observed async failure paths in `src/services/email.ts` only",
+            "Grounded handling of repository lookup results and provider send failures",
+            "Service-level error semantics without inventing unsupported domain types",
+            "Deterministic behavior and testability of external email delivery integration",
+            "Validation only when justified by the visible function contract or surrounding code",
+            "Service-to-repository and service-to-email-client boundary assumptions"
+          ],
+          "specific_checks": [
+            "Anchor every finding to code that is explicitly present in the diff or referenced failure summary; do not infer APIs, files, types, or behaviors not evidenced by the snippet/context.",
+            "Do not claim `db.users.findById` throws, returns null, or guarantees an `email` field unless the code or provided context supports that; instead phrase risks conditionally.",
+            "Verify whether `sendWelcomeEmail` dereferences `user.email` before checking that `user` exists; if so, report a concrete null/undefined dereference risk tied to that exact code.",
+            "Verify whether provider errors are rethrown raw or wrapped; if recommending wrapping, preserve original cause/context rather than replacing everything with a generic `Error` without rationale.",
+            "Flag nondeterminism only if the production path actually uses `Math.random()` or equivalent randomness; explicitly distinguish production behavior from test-only stubs.",
+            "Assess whether the email client is module-scoped and hard-coded; if yes, recommend an injectable parameter or equivalent seam strictly as a maintainability/testability improvement grounded in the code.",
+            "Require suggested fixes to preserve determinism in tests by injecting or mocking the email client only if the client is currently hard-coded or otherwise difficult to control in tests.",
+            "When suggesting input validation for `userId`, mark it as optional unless the visible code shows this layer owns boundary validation; do not present it as a mandatory defect without evidence.",
+            "Check that suggested tests map directly to observed branches in the code: success path, missing user before dereference, invalid/missing email before send, provider rejection after successful lookup, and negative assertions that the provider is not called when prerequisites fail.",
+            "Do not reference any file other than `src/services/email.ts` unless it is explicitly present in the review context, and do not cite line numbers unless they correspond to the provided snippet/diff.",
+            "Ensure every recommendation distinguishes confirmed defects from contingent risks, especially around repository return shape, validation ownership, and architectural expectations."
+          ],
+          "source_skills": [
+            "error-handling-review",
+            "backend-api-swallowed-error-review"
+          ],
+          "risk_profile": [
+            "Unhandled async exceptions from external service calls",
+            "Potential null dereference from repository lookup result",
+            "Ambiguous failure semantics for downstream callers",
+            "Operational instability from nondeterministic dependency behavior",
+            "Reduced maintainability from hard-coded dependencies",
+            "Contract mismatch between service and db layer",
+            "Over-prescriptive fixes that are not grounded in visible service contracts"
+          ]
+        },
+        {
+          "persona_name": "Privacy-Safe Error Exposure Reviewer",
+          "focus_areas": [
+            "PII exposure in error messages and logs around email addresses",
+            "Privacy implications of propagated provider failures",
+            "Regression tests for privacy-safe failures in `src/services/email.ts`"
+          ],
+          "specific_checks": [
+            "Review only privacy concerns that can be grounded in `src/services/email.ts` and the provided findings; do not hallucinate broader project patterns or nonexistent modules.",
+            "Check whether suggested error messages include full recipient email addresses; if so, assess privacy/PII leakage risk and prefer userId or redacted email unless explicit logging/error conventions are shown.",
+            "Do not recommend logging sensitive data or adding logs unless the code context shows an established logging mechanism and sanitization pattern.",
+            "Do not invent security issues unrelated to the visible code; only raise privacy/security findings directly tied to exposed email data, error propagation, or externally observable behavior in this service.",
+            "If the proposed fix includes contextual error messages, require at least one test expectation ensuring thrown messages do not expose full email addresses unless intentionally specified.",
+            "Check for incomplete fixes that wrap errors but discard original causes; if the language/runtime supports `cause`, recommend preserving it while still avoiding unnecessary PII exposure.",
+            "Ensure every recommendation distinguishes confirmed defects from contingent risks and avoids overstating privacy requirements not evidenced by the codebase context."
+          ],
+          "source_skills": [
+            "error-handling-review"
+          ],
+          "risk_profile": [
+            "PII leakage through exception messages or logs",
+            "Sensitive provider failure details exposed to callers",
+            "Hallucinated security/privacy requirements without code evidence"
+          ]
+        }
+      ],
+      "stress_profiles": {
+        "Service Reliability, Error-Contract & Testability Reviewer": {
+          "hypothetical_bugs": [
+            "`sendWelcomeEmail` dereferences `user.email` immediately after `await db.users.findById(userId)` with no visible existence check. If the repository can return `null`/`undefined` or a record without `email`, this will fail before or during the send call. Prioritize the missing-user / missing-email branches and verify the provider is not called when prerequisites are absent.",
+            "The external send path has an explicit async failure mode (`Math.random() > 0.9` throws `Error('Email service unavailable')`), and `sendWelcomeEmail` currently lets that rejection escape raw. Prioritize whether this creates ambiguous service-level error semantics for callers and whether tests cover provider rejection after a successful lookup while preserving original cause/context.",
+            "`emailClient` is module-scoped, hard-coded, and its production behavior is nondeterministic because it uses `Math.random()`. Prioritize testability and reliability risks: flaky tests, hard-to-reproduce failures, and lack of an injection seam for controlling the email dependency in service tests."
+          ]
+        },
+        "Privacy-Safe Error Exposure Reviewer": {
+          "hypothetical_bugs": [
+            "Provider failures from `emailClient.send` are currently propagated verbatim. If future/provider errors include recipient-specific details (for example the full `user.email` in the message), callers could observe PII or sensitive provider diagnostics because `sendWelcomeEmail` does not sanitize or wrap the error.",
+            "The new service passes `user.email` directly into the send path with no privacy-focused regression test around failure behavior. A likely missed edge case is adding a contextual error later like `Failed to send welcome email to ${user.email}` and unintentionally exposing full email addresses; this persona should prioritize checking for tests that assert thrown errors do not contain raw recipient emails.",
+            "If this function is later fixed by catching send errors, an incomplete implementation may either overexpose details (including full email/provider response text) or discard the original cause entirely. This persona should watch for error handling that preserves `cause` while replacing outward-facing messages with privacy-safe text grounded in `src/services/email.ts`."
+          ]
+        }
+      },
+      "draft_review_summaries": {
+        "Service Reliability, Error-Contract & Testability Reviewer": "3 comments (High:1, Medium:2). `sendWelcomeEmail` has one concrete correctness risk and two service-boundary/testability issues. The main defect is that it dereferences `user.email` without any visible guard after `db.users.findById`, so missing-user ",
+        "Privacy-Safe Error Exposure Reviewer": "1 comments (Medium:1). This new service is small, and the main privacy concern visible in `src/services/email.ts` is unsanitized propagation of downstream email-send failures. I did not identify any confirmed current leak in the stubbed error "
+      },
+      "peer_finalized_review_summaries": {
+        "Service Reliability, Error-Contract & Testability Reviewer": "3 comments (High:1, Medium:2). `sendWelcomeEmail` still has one concrete correctness defect and two service-boundary/testability issues. The primary problem is the missing post-lookup guard before dereferencing `user.email`, which can produce unclear ",
+        "Privacy-Safe Error Exposure Reviewer": "1 comments (Medium:1). Within the privacy-safe error exposure scope, the main issue is that `src/services/email.ts` exposes downstream email-provider failures without sanitization. Peer feedback about adding explicit user/email precondition ch"
+      },
+      "final_synthesized_review_summary": "3 comments (High:1, Medium:2). `src/services/email.ts` has one concrete correctness bug and two service-boundary issues. The highest-priority defect is the missing null/empty-email validation after `findById`, which can throw unexpectedly or send inva",
+      "fitness_score": 0.93,
+      "deterministic_penalties": [],
+      "evaluator_comments": "Strong review: the findings are specific, grounded in the described code, and include concrete fixes plus useful regression tests. The null/user.email validation issue is clearly a real correctness bug, and the testability concern around Math.random()-driven behavior is well identified. The provider-error wrapping suggestion is actionable, though it is somewhat more opinionated than strictly required unless the codebase already defines a service-layer error contract or privacy requirement. To improve further, the review could avoid overlapping fix snippets across comments by consolidating them, and it could mention any compatibility/runtime considerations for Error.cause more explicitly as part of the main recommendation rather than as a side note.",
+      "mutation_applied": false,
+      "mutation_reason": "",
+      "mutation_delta": null
+    }
+  ],
+  "outputs": {
+    "llm_call_count": 24,
+    "llm_calls": [
+      {
+        "stage": "differentiate",
+        "prompt_tokens": 880,
+        "completion_tokens": 400,
+        "total_tokens": 1280
+      },
+      {
+        "stage": "prune_reviewers",
+        "prompt_tokens": 721,
+        "completion_tokens": 455,
+        "total_tokens": 1176
+      },
+      {
+        "stage": "stress_profile",
+        "prompt_tokens": 565,
+        "completion_tokens": 193,
+        "total_tokens": 758
+      },
+      {
+        "stage": "stress_profile",
+        "prompt_tokens": 531,
+        "completion_tokens": 213,
+        "total_tokens": 744
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 891,
+        "completion_tokens": 924,
+        "total_tokens": 1815
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 909,
+        "completion_tokens": 638,
+        "total_tokens": 1547
+      },
+      {
+        "stage": "draft_review_parse",
+        "prompt_tokens": 1029,
+        "completion_tokens": 833,
+        "total_tokens": 1862
+      },
+      {
+        "stage": "draft_review_parse",
+        "prompt_tokens": 1047,
+        "completion_tokens": 1250,
+        "total_tokens": 2297
+      },
+      {
+        "stage": "peer_finalize",
+        "prompt_tokens": 2781,
+        "completion_tokens": 1123,
+        "total_tokens": 3904
+      },
+      {
+        "stage": "peer_finalize",
+        "prompt_tokens": 2821,
+        "completion_tokens": 1681,
+        "total_tokens": 4502
+      },
+      {
+        "stage": "synthesize_review",
+        "prompt_tokens": 3769,
+        "completion_tokens": 1025,
+        "total_tokens": 4794
+      },
+      {
+        "stage": "fitness_evaluate",
+        "prompt_tokens": 1356,
+        "completion_tokens": 149,
+        "total_tokens": 1505
+      },
+      {
+        "stage": "mutate_reviewers",
+        "prompt_tokens": 2022,
+        "completion_tokens": 988,
+        "total_tokens": 3010
+      },
+      {
+        "stage": "prune_reviewers",
+        "prompt_tokens": 1310,
+        "completion_tokens": 880,
+        "total_tokens": 2190
+      },
+      {
+        "stage": "stress_profile",
+        "prompt_tokens": 627,
+        "completion_tokens": 211,
+        "total_tokens": 838
+      },
+      {
+        "stage": "stress_profile",
+        "prompt_tokens": 894,
+        "completion_tokens": 227,
+        "total_tokens": 1121
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 984,
+        "completion_tokens": 499,
+        "total_tokens": 1483
+      },
+      {
+        "stage": "draft_review_parse",
+        "prompt_tokens": 1122,
+        "completion_tokens": 379,
+        "total_tokens": 1501
+      },
+      {
+        "stage": "draft_review_tool_loop",
+        "prompt_tokens": 1288,
+        "completion_tokens": 989,
+        "total_tokens": 2277
+      },
+      {
+        "stage": "draft_review_parse",
+        "prompt_tokens": 1426,
+        "completion_tokens": 1333,
+        "total_tokens": 2759
+      },
+      {
+        "stage": "peer_finalize",
+        "prompt_tokens": 2404,
+        "completion_tokens": 533,
+        "total_tokens": 2937
+      },
+      {
+        "stage": "peer_finalize",
+        "prompt_tokens": 2315,
+        "completion_tokens": 1468,
+        "total_tokens": 3783
+      },
+      {
+        "stage": "synthesize_review",
+        "prompt_tokens": 2843,
+        "completion_tokens": 1417,
+        "total_tokens": 4260
+      },
+      {
+        "stage": "fitness_evaluate",
+        "prompt_tokens": 1774,
+        "completion_tokens": 147,
+        "total_tokens": 1921
+      }
+    ],
+    "score_history": [
+      0.89,
+      0.93
+    ],
+    "final_comment_count": 3,
+    "skill_evolution_stats": {
+      "total_learned_skills": 17,
+      "total_usage": 0,
+      "total_success": 0,
+      "average_success_rate": 0.0,
+      "last_updated": "2026-05-11T20:12:02.407829"
+    }
+  }
+}

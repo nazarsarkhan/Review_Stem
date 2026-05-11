@@ -151,6 +151,10 @@ async def run_review_pipeline(
     fitness = FitnessFunction(llm, repo_path=str(repo_path), changed_files=changed_files)
     skills = load_review_guidance(diff, Path.cwd(), repo_signals=repo_map, case_id=case_name, llm=llm)
 
+    # Initialize skill evolution engine for persistent learning
+    from .skill_evolution import SkillEvolutionEngine
+    skill_evolution = SkillEvolutionEngine(Path(".reviewstem/learned_skills.json"))
+
     # Initialize OpenSpace components for skill learning
     openspace_skills_dir = Path.cwd() / "skills" / "openspace"
     skill_engine = None
@@ -277,6 +281,18 @@ async def run_review_pipeline(
         if evaluation.score >= config.target_score:
             state.stop_reason = f"target_score_met: {evaluation.score:.2f} >= {config.target_score:.2f}"
             state.iterations.append(iteration_trace)
+
+            # Learn from successful review
+            for genome in current_genomes:
+                learned = skill_evolution.learn_from_success(
+                    genome=genome,
+                    case_id=case_name,
+                    fitness_score=evaluation.score,
+                    min_score_threshold=0.85
+                )
+                if learned:
+                    logger.info(f"Learned new skill from successful review: {learned.skill_name}")
+
             if not config.quiet:
                 console.print("  [green]Quality threshold met.[/green]")
             break
@@ -335,6 +351,13 @@ async def run_review_pipeline(
     # Add evolved skills to state
     if evolved_skills_list:
         state.outputs["evolved_skills"] = evolved_skills_list
+
+    # Add skill evolution statistics to state
+    skill_stats = skill_evolution.get_skill_statistics()
+    state.outputs["skill_evolution_stats"] = skill_stats
+    if skill_stats["total_learned_skills"] > 0:
+        logger.info(f"Skill evolution stats: {skill_stats['total_learned_skills']} learned skills, "
+                   f"{skill_stats['average_success_rate']:.2%} avg success rate")
 
     write_specialization_state(
         state,
@@ -571,6 +594,71 @@ def doctor():
         table.add_row(name, status)
     console.print(table)
     if any(status == "missing" for _, status in checks):
+        raise typer.Exit(code=1)
+
+
+@app.command("skills")
+def skills_command(
+    action: str = typer.Argument("list", help="Action: list, stats, export, prune"),
+    output: str = typer.Option(None, help="Output file for export action"),
+):
+    """Manage learned skills from successful reviews."""
+    from .skill_evolution import SkillEvolutionEngine
+
+    evolution = SkillEvolutionEngine(Path(".reviewstem/learned_skills.json"))
+
+    if action == "list":
+        learned = evolution.get_learned_skills()
+        if not learned:
+            console.print("[yellow]No learned skills yet. Run successful reviews to learn new skills.[/yellow]")
+            return
+
+        table = Table(title="Learned Skills")
+        table.add_column("Skill Name")
+        table.add_column("Source Case")
+        table.add_column("Success Score")
+        table.add_column("Usage")
+        table.add_column("Success Rate")
+        table.add_column("Learned At")
+
+        for skill in learned:
+            success_rate = skill.success_count / skill.usage_count if skill.usage_count > 0 else 0.0
+            table.add_row(
+                skill.skill_name,
+                skill.source_case,
+                f"{skill.success_score:.2f}",
+                f"{skill.success_count}/{skill.usage_count}",
+                f"{success_rate:.1%}",
+                skill.learned_at[:10]
+            )
+
+        console.print(table)
+        console.print(f"\n[cyan]Total learned skills: {len(learned)}[/cyan]")
+
+    elif action == "stats":
+        stats = evolution.get_skill_statistics()
+        console.print("\n[bold]Skill Evolution Statistics[/bold]")
+        console.print(f"Total learned skills: {stats['total_learned_skills']}")
+        console.print(f"Total usage: {stats['total_usage']}")
+        console.print(f"Total success: {stats['total_success']}")
+        console.print(f"Average success rate: {stats['average_success_rate']:.1%}")
+        console.print(f"Last updated: {stats['last_updated']}")
+
+    elif action == "export":
+        if not output:
+            console.print("[red]Error: --output required for export action[/red]")
+            raise typer.Exit(code=1)
+
+        evolution.export_to_skill_catalog(Path(output))
+        console.print(f"[green]Exported learned skills to {output}[/green]")
+
+    elif action == "prune":
+        evolution.prune_underperforming_skills(min_success_rate=0.5, min_usage=3)
+        console.print("[green]Pruned underperforming skills[/green]")
+
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("Valid actions: list, stats, export, prune")
         raise typer.Exit(code=1)
 
 

@@ -31,103 +31,284 @@
     "success_score": 0.9
   },
   {
-    "skill_name": "Admin Route Authentication/Authorization Review",
-    "trigger": "Use when a PR modifies admin or privileged backend/API routes, route mounting, middleware ordering, or authorization behavior.",
+    "skill_name": "XSS and HTML Injection Detection",
+    "trigger": "Use when a PR modifies HTML rendering, template output, user-generated content display, or DOM manipulation with user input.",
     "risk_profile": [
-      "Missing authentication on privileged routes",
-      "Missing admin authorization checks",
-      "Privilege escalation through inconsistent role checks",
-      "Middleware ordering that leaves handlers reachable before auth",
-      "Route mounting bypass through alternate unprotected paths",
-      "Missing 401 and 403 regression tests"
+      "Cross-site scripting through unsanitized user input in HTML",
+      "DOM-based XSS through unsafe innerHTML or dangerouslySetInnerHTML",
+      "Missing output encoding for user-controlled data",
+      "Template injection vulnerabilities",
+      "Stored XSS through persisted user content"
     ],
     "context_plan": [
-      "Inspect changed route handlers for authentication and role checks",
-      "Read router mounting or application setup files when route protection may be applied outside the handler",
-      "Compare with established protected-route patterns elsewhere in the repository",
-      "Check middleware order and alternate mount paths before assuming global protection applies",
-      "Review tests for unauthenticated, non-admin, and admin outcomes"
+      "Identify all user-controlled values that reach HTML output or DOM manipulation",
+      "Check for proper output encoding or sanitization before rendering",
+      "Verify template engines auto-escape by default or explicit escaping is used",
+      "Look for innerHTML, dangerouslySetInnerHTML, or equivalent unsafe DOM APIs"
     ],
     "checklist": [
-      "Is authentication enforced before the privileged handler runs?",
-      "Is admin or equivalent role authorization enforced after authentication?",
-      "Could route mounting or middleware order expose the route through an unprotected path?",
-      "Are all methods and subroutes covered by the same protection?",
-      "Are negative-path tests present for 401 and 403 behavior?"
+      "Is user input properly escaped before HTML rendering?",
+      "Are template engines configured for auto-escaping?",
+      "Is innerHTML or dangerouslySetInnerHTML used with user input?",
+      "Are URL parameters, form inputs, and stored content sanitized?",
+      "Are tests proposed for script injection attempts?"
     ],
     "test_templates": [
-      "Unauthenticated requests to the admin endpoint are denied",
-      "Authenticated non-admin requests to the admin endpoint are denied",
+      "User input containing <script> tags is escaped and rendered as text",
+      "Event handler attributes in user input are neutralized",
+      "Stored user content with malicious payloads does not execute on display"
+    ],
+    "source_case": "xss_vulnerability",
+    "success_score": 0.92
+  },
+  {
+    "skill_name": "Authentication and Authorization Review",
+    "trigger": "Use when a PR modifies admin or privileged routes, authentication logic, session handling, JWT validation, role checks, or middleware ordering.",
+    "risk_profile": [
+      "Missing authentication on privileged routes",
+      "Missing authorization checks for admin/privileged operations",
+      "Privilege escalation through inconsistent role checks",
+      "Middleware ordering that bypasses auth",
+      "Session fixation or hijacking vulnerabilities",
+      "JWT validation bypass or weak secret handling"
+    ],
+    "context_plan": [
+      "Inspect route handlers for authentication and authorization checks",
+      "Read router mounting and middleware configuration files",
+      "Compare with established auth patterns in the repository",
+      "Check middleware order and alternate mount paths",
+      "Review session and token validation logic"
+    ],
+    "checklist": [
+      "Is authentication enforced before privileged handlers run?",
+      "Is role-based authorization checked after authentication?",
+      "Could route mounting or middleware order expose unprotected paths?",
+      "Are session tokens validated and regenerated properly?",
+      "Are JWT secrets strong and validation complete?",
+      "Are tests present for unauthenticated and unauthorized access?"
+    ],
+    "test_templates": [
+      "Unauthenticated requests to privileged endpoints return 401",
+      "Authenticated non-admin requests to admin endpoints return 403",
       "Authenticated admin requests succeed",
-      "Alternate mount paths and HTTP methods cannot bypass middleware"
+      "Invalid or expired tokens are rejected",
+      "Session fixation attacks are prevented"
     ],
     "source_case": "admin_auth",
     "success_score": 0.88
   },
   {
-    "skill_name": "Cache Invalidation Audit for Update-Path Stale-Read Bugs",
-    "trigger": "Use when a PR changes cache behavior, cached reads, mutation paths, update flows, or cache key construction.",
+    "skill_name": "Input Validation and Sanitization Review",
+    "trigger": "Use when a PR modifies request handling, form processing, API endpoints, file uploads, or user input validation.",
     "risk_profile": [
-      "Stale cache after successful update",
-      "Read and write cache key mismatch",
-      "Missing invalidation after mutation",
-      "Asymmetric create, update, and delete cache behavior",
-      "Missing read-update-read regression tests"
+      "Missing input validation allows malformed data",
+      "Type confusion vulnerabilities",
+      "Path traversal through unsanitized file paths",
+      "Command injection through shell execution with user input",
+      "SSRF through unvalidated URLs",
+      "Mass assignment vulnerabilities"
     ],
     "context_plan": [
-      "Trace read-path cache key construction and update-path invalidation key construction",
-      "Verify every successful update invalidates, refreshes, or overwrites the exact key later served by reads",
-      "Compare create, update, and delete behavior for cache coherence symmetry",
-      "Read surrounding cache helpers when the diff only shows one side of the read/write flow"
+      "Identify all user input entry points (params, body, headers, files)",
+      "Check for validation schemas or explicit validation logic",
+      "Look for file path construction with user input",
+      "Inspect shell command execution with user-controlled values",
+      "Review URL construction and HTTP client usage"
     ],
     "checklist": [
-      "Does the update path invalidate or refresh the same key used by cached reads?",
-      "Can a read immediately after update return stale pre-update data?",
-      "Are create, update, and delete paths consistent in cache handling?",
-      "Do error and retry branches avoid mixed stale state?",
-      "Is there a read-update-read regression test?"
+      "Are all user inputs validated against expected types and formats?",
+      "Are file paths sanitized to prevent directory traversal?",
+      "Is shell command execution avoided or properly escaped?",
+      "Are URLs validated before making outbound requests?",
+      "Are object properties whitelisted to prevent mass assignment?",
+      "Are tests proposed for malicious input patterns?"
     ],
     "test_templates": [
-      "Cache a record, update it, then read again and assert the updated value is returned",
-      "Verify the invalidation key exactly matches the read cache key",
-      "Repeated updates followed by reads always return the latest persisted value"
+      "Invalid input types are rejected with appropriate error messages",
+      "Path traversal attempts (../, absolute paths) are blocked",
+      "Command injection payloads are neutralized or rejected",
+      "SSRF attempts to internal URLs are prevented",
+      "Mass assignment of protected fields is blocked"
+    ],
+    "source_case": "input_validation",
+    "success_score": 0.89
+  },
+  {
+    "skill_name": "Error Handling and Information Disclosure Review",
+    "trigger": "Use when a PR modifies error handling, exception catching, logging, error responses, or async control flow.",
+    "risk_profile": [
+      "Swallowed errors leading to silent failures",
+      "Unhandled promise rejections",
+      "Information disclosure through verbose error messages",
+      "Stack traces exposed to clients",
+      "False success responses after failures",
+      "Missing error logging"
+    ],
+    "context_plan": [
+      "Trace error handling from try/catch blocks to response emission",
+      "Check promise chains for proper rejection handling",
+      "Review error messages for sensitive information disclosure",
+      "Verify async operations are awaited before success responses",
+      "Inspect error logging and monitoring integration"
+    ],
+    "checklist": [
+      "Are all errors properly caught and handled?",
+      "Are promise rejections handled or propagated?",
+      "Do error responses avoid exposing sensitive details?",
+      "Are stack traces hidden from production responses?",
+      "Is async work completed before success is sent?",
+      "Are errors logged for debugging without exposing to clients?",
+      "Are tests present for error scenarios?"
+    ],
+    "test_templates": [
+      "Thrown errors return appropriate HTTP error codes",
+      "Rejected promises are caught and handled",
+      "Error responses contain generic messages without stack traces",
+      "Async failures prevent false success responses",
+      "Error logs capture details without exposing to clients"
+    ],
+    "source_case": "async_swallowed_error",
+    "success_score": 0.9
+  },
+  {
+    "skill_name": "Cache Coherence and Invalidation Review",
+    "trigger": "Use when a PR modifies caching logic, cache keys, invalidation, mutation paths, or cached data access.",
+    "risk_profile": [
+      "Stale cache after updates",
+      "Cache key mismatch between reads and writes",
+      "Missing invalidation after mutations",
+      "Race conditions in cache updates",
+      "Cache poisoning vulnerabilities"
+    ],
+    "context_plan": [
+      "Trace cache key construction in read and write paths",
+      "Verify invalidation happens after successful mutations",
+      "Check for cache key consistency across operations",
+      "Review cache TTL and eviction policies",
+      "Look for race conditions in cache updates"
+    ],
+    "checklist": [
+      "Do update paths invalidate the same keys used by reads?",
+      "Are cache keys consistent across create, read, update, delete?",
+      "Can reads return stale data after updates?",
+      "Are race conditions in cache updates handled?",
+      "Is cache poisoning prevented through validation?",
+      "Are tests present for cache coherence?"
+    ],
+    "test_templates": [
+      "Read after update returns fresh data, not stale cache",
+      "Cache keys match exactly between read and invalidation",
+      "Concurrent updates maintain cache consistency",
+      "Invalid data cannot poison the cache"
     ],
     "source_case": "cache_invalidation",
     "success_score": 0.9
   },
   {
-    "skill_name": "Backend API Swallowed Error Review",
-    "trigger": "Use when a PR modifies backend/API route handlers, import/process endpoints, try/catch blocks, async control flow, promise handling, or response emission.",
+    "skill_name": "Performance and Resource Management Review",
+    "trigger": "Use when a PR modifies database queries, loops, API calls, file operations, or resource-intensive operations.",
     "risk_profile": [
-      "Caught exceptions ignored",
-      "Async errors not awaited or returned",
-      "False 2xx success response after failure",
-      "Logging without propagation",
-      "Partial side effects before failure",
-      "Missing negative-path tests"
+      "N+1 query problems",
+      "Unbounded loops or recursion",
+      "Memory leaks from unclosed resources",
+      "Missing pagination on large datasets",
+      "Inefficient algorithms in hot paths",
+      "Missing rate limiting or throttling"
     ],
     "context_plan": [
-      "Trace route control flow from request validation through response emission",
-      "Inspect try/catch blocks and promise chains for swallowed failures",
-      "Verify caught errors return non-2xx responses, rethrow, or call error middleware",
-      "Check whether async work is awaited before success is sent",
-      "Review tests for thrown and rejected downstream failures"
+      "Identify database queries in loops",
+      "Check for pagination on list endpoints",
+      "Review resource cleanup (connections, files, streams)",
+      "Look for algorithmic inefficiencies",
+      "Inspect rate limiting and throttling mechanisms"
     ],
     "checklist": [
-      "Can execution continue to a success response after a caught exception?",
-      "Are downstream async operations awaited or returned?",
-      "Is logging used in addition to propagation rather than as a substitute?",
-      "Do partial side effects have explicit failure semantics?",
-      "Are negative-path tests present for thrown and rejected failures?"
+      "Are database queries batched instead of looped?",
+      "Is pagination implemented for large result sets?",
+      "Are resources (connections, files) properly closed?",
+      "Are algorithms efficient for expected data sizes?",
+      "Is rate limiting present on public endpoints?",
+      "Are tests present for performance scenarios?"
     ],
     "test_templates": [
-      "The route returns a non-2xx response when the service throws",
-      "The route does not emit success before required async work completes",
-      "Rejected promises are propagated to error handling",
-      "Caught failures are logged and still represented in the HTTP response"
+      "List endpoints with many records execute in constant queries",
+      "Large datasets are paginated and don't cause memory issues",
+      "Resources are released after use",
+      "Rate limiting prevents abuse"
     ],
-    "source_case": "async_swallowed_error",
-    "success_score": 0.9
+    "source_case": "n_plus_one_query",
+    "success_score": 0.87
+  },
+  {
+    "skill_name": "Cryptography and Secrets Management Review",
+    "trigger": "Use when a PR modifies encryption, hashing, password handling, API keys, tokens, or secrets management.",
+    "risk_profile": [
+      "Weak or broken cryptographic algorithms",
+      "Hardcoded secrets or API keys",
+      "Insecure password hashing",
+      "Missing encryption for sensitive data",
+      "Weak random number generation",
+      "Secrets logged or exposed in errors"
+    ],
+    "context_plan": [
+      "Check for hardcoded secrets in code",
+      "Review cryptographic algorithm choices",
+      "Verify password hashing uses bcrypt/argon2/scrypt",
+      "Inspect random number generation for security-sensitive operations",
+      "Look for secrets in logs or error messages"
+    ],
+    "checklist": [
+      "Are secrets loaded from environment variables or secret managers?",
+      "Are modern, secure cryptographic algorithms used?",
+      "Are passwords hashed with bcrypt, argon2, or scrypt?",
+      "Is sensitive data encrypted at rest and in transit?",
+      "Is cryptographically secure random generation used?",
+      "Are secrets excluded from logs and error messages?",
+      "Are tests present without exposing real secrets?"
+    ],
+    "test_templates": [
+      "Passwords are hashed with appropriate work factors",
+      "Secrets are not present in code or version control",
+      "Encryption uses modern algorithms (AES-256, etc.)",
+      "Random tokens are cryptographically secure"
+    ],
+    "source_case": "crypto_secrets",
+    "success_score": 0.93
+  },
+  {
+    "skill_name": "Comprehensive Test Generation",
+    "trigger": "Use for all PRs to generate comprehensive test coverage including security, edge cases, and regression tests.",
+    "risk_profile": [
+      "Missing security test coverage",
+      "Untested edge cases and error paths",
+      "No regression tests for bug fixes",
+      "Missing integration tests",
+      "Inadequate negative-path testing"
+    ],
+    "context_plan": [
+      "Analyze changed code to identify testable behaviors",
+      "Generate security tests for identified vulnerabilities",
+      "Create edge case tests for boundary conditions",
+      "Write regression tests for bug fixes",
+      "Include negative-path tests for error handling"
+    ],
+    "checklist": [
+      "Are security tests present for all identified risks?",
+      "Are edge cases and boundary conditions tested?",
+      "Are error paths and exception handling tested?",
+      "Are integration tests present for multi-component changes?",
+      "Do tests cover both positive and negative scenarios?",
+      "Are tests deterministic and not flaky?"
+    ],
+    "test_templates": [
+      "Security tests verify protection against identified attack vectors",
+      "Edge case tests cover boundary conditions (empty, null, max values)",
+      "Error tests verify proper handling of failures",
+      "Integration tests verify component interactions",
+      "Regression tests prevent reintroduction of fixed bugs"
+    ],
+    "source_case": "test_generation",
+    "success_score": 0.91
   },
   {
     "skill_name": "Low-Context PR Triage and Repository Validation",

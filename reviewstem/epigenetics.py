@@ -5,15 +5,17 @@ import re
 from typing import List
 
 from .schemas import LearnedTrait, SelectedSkill
+from .skill_evolution import SkillEvolutionEngine
 
 logger = logging.getLogger("ReviewStem")
 
 
 class Epigenetics:
-    def __init__(self, memory_file: str = "skills.json"):
+    def __init__(self, memory_file: str = "skills.json", learned_skills_path: str = ".reviewstem/learned_skills.json"):
         self.memory_file = Path(memory_file)
         self.traits: List[LearnedTrait] = []
         self.skill_catalog: list[dict] = []
+        self.evolution_engine = SkillEvolutionEngine(Path(learned_skills_path))
         self._load()
 
     def _load(self):
@@ -26,6 +28,24 @@ class Epigenetics:
                 logger.info("Epigenetics: Loaded %s traits from memory.", len(self.traits))
             except Exception as e:
                 logger.error("Epigenetics: Failed to load memory: %s", e)
+
+        # Load learned skills into catalog
+        learned_skills = self.evolution_engine.get_learned_skills()
+        for learned in learned_skills:
+            learned_dict = {
+                "skill_name": learned.skill_name,
+                "trigger": learned.trigger,
+                "risk_profile": learned.risk_profile,
+                "context_plan": learned.context_plan,
+                "checklist": learned.checklist,
+                "test_templates": learned.test_templates,
+                "source_case": learned.source_case,
+                "success_score": learned.success_score,
+            }
+            self.skill_catalog.append(learned_dict)
+
+        if learned_skills:
+            logger.info("Epigenetics: Loaded %s learned skills from evolution engine.", len(learned_skills))
 
     def save_trait(self, trait: LearnedTrait):
         """Save a new successful trait to memory."""

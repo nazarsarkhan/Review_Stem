@@ -1,12 +1,12 @@
 {
-  "run_id": "admin_auth-e42338ad36",
+  "run_id": "admin_auth-87afaabc4b",
   "mode": "benchmark",
   "case_id": "admin_auth",
-  "timestamp": "2026-05-11T15:36:45+00:00",
+  "timestamp": "2026-05-11T17:56:11+00:00",
   "target_score": 0.9,
   "max_iterations": 2,
   "model": "gpt-5.4",
-  "stop_reason": "target_score_met: 0.90 >= 0.90",
+  "stop_reason": "target_score_met: 0.91 >= 0.90",
   "environment": {
     "changed_files": [
       "src/routes/admin.ts"
@@ -46,41 +46,38 @@
       ],
       "specific_checks": [
         "Verify the new `/stats` admin endpoint is protected by authentication middleware.",
-        "Verify only authorized admin roles/permissions can access `/stats`, not merely any authenticated user.",
-        "Check whether the admin router consistently applies middleware at router-level or per-route, and ensure the new route follows that pattern.",
-        "Review whether returning `totalUsers` and `revenue` exposes sensitive business metrics that should be restricted, redacted, or audited.",
-        "Confirm unauthorized and unauthenticated requests receive appropriate HTTP responses (401/403).",
-        "Recommend tests covering anonymous, non-admin, and admin access to `/stats`."
+        "Verify only authorized admin roles/permissions can access `/stats`; reject normal authenticated users.",
+        "Check whether the route should inherit router-level protection or requires explicit middleware on this handler.",
+        "Review the response payload for sensitive business metrics exposure (`totalUsers`, `revenue`) and confirm this is intended for admin-only use.",
+        "Confirm unauthorized and unauthenticated requests receive appropriate HTTP status codes (401/403).",
+        "Add or update tests covering admin access success and non-admin/anonymous access denial for `GET /stats`."
       ],
       "source_skills": [
         "admin-route-authentication-authorization-review"
       ],
       "risk_profile": [
-        "Privileged route exposed without auth",
+        "Privileged endpoint exposed without auth",
         "Missing role/permission checks on admin functionality",
-        "Sensitive admin/business data disclosure",
-        "Inconsistent middleware application across admin routes"
+        "Sensitive operational data leakage from admin APIs"
       ]
     },
     {
-      "persona_name": "Express Route Integration & API Contract Reviewer",
+      "persona_name": "Express Route Integration & API Consistency Reviewer",
       "focus_areas": [
-        "Express router wiring",
-        "Route consistency within `src/routes/admin.ts`",
-        "Response shape and maintainability",
-        "Test coverage for new endpoint"
+        "Route registration and middleware composition",
+        "API contract consistency",
+        "Basic handler robustness and maintainability"
       ],
       "specific_checks": [
-        "Confirm the new `GET /stats` route is mounted under the intended admin path and does not conflict with existing routes.",
-        "Check whether hardcoded metrics (`1000`, `50000`) are placeholders that should instead come from database/service layers before merge.",
-        "Review response naming and schema consistency for API consumers, including whether numeric fields need typing/documentation.",
-        "Ensure there are route-level tests validating success response and guarding against regressions for the new endpoint."
+        "Confirm `src/routes/admin.ts` is mounted under the intended admin path and existing admin router protections still apply to the new route.",
+        "Check the new handler follows repository conventions for route structure, error handling, and response formatting.",
+        "Verify the hard-coded stats payload is acceptable for this PR or flag as placeholder/mock logic if production behavior is expected.",
+        "Recommend tests for `GET /stats` response shape and status code under expected successful access conditions."
       ],
       "source_skills": [],
       "risk_profile": [
-        "Hardcoded operational data in production route",
-        "Undocumented API contract changes",
-        "Missing regression coverage for new admin endpoint"
+        "Route added without consistent middleware chain",
+        "Placeholder data accidentally shipped as production admin API"
       ]
     }
   ],
@@ -88,12 +85,12 @@
     "Admin Route Authentication & Authorization Reviewer": [
       "admin-route-authentication-authorization-review"
     ],
-    "Express Route Integration & API Contract Reviewer": []
+    "Express Route Integration & API Consistency Reviewer": []
   },
   "tool_use": [
     {
       "iteration": 1,
-      "reviewer": "Admin Access Control & Sensitive Metrics Reviewer",
+      "reviewer": "Express Admin API Integration & Contract Reviewer",
       "tool_name": "read_file",
       "path": "src/routes/admin.ts",
       "success": true,
@@ -102,7 +99,7 @@
     },
     {
       "iteration": 1,
-      "reviewer": "Express Admin Route Contract & Implementation Reviewer",
+      "reviewer": "Admin Access Control & Sensitive Data Exposure Reviewer",
       "tool_name": "read_file",
       "path": "src/routes/admin.ts",
       "success": true,
@@ -111,16 +108,7 @@
     },
     {
       "iteration": 1,
-      "reviewer": "Express Admin Route Contract & Implementation Reviewer",
-      "tool_name": "read_file",
-      "path": "src/routes/index.ts",
-      "success": false,
-      "characters_returned": 0,
-      "error": "[Errno 2] No such file or directory: 'C:\\\\Users\\\\nazar\\\\Desktop\\\\Uni\\\\Projects\\\\JB_internships\\\\Review_Stem\\\\benchmark_repo\\\\src\\\\routes\\\\index.ts'"
-    },
-    {
-      "iteration": 1,
-      "reviewer": "Express Admin Route Contract & Implementation Reviewer",
+      "reviewer": "Admin Access Control & Sensitive Data Exposure Reviewer",
       "tool_name": "read_file",
       "path": "src/app.ts",
       "success": false,
@@ -129,11 +117,20 @@
     },
     {
       "iteration": 1,
-      "reviewer": "Express Admin Route Contract & Implementation Reviewer",
+      "reviewer": "Admin Access Control & Sensitive Data Exposure Reviewer",
       "tool_name": "read_file",
-      "path": "package.json",
+      "path": "src/server.ts",
+      "success": false,
+      "characters_returned": 0,
+      "error": "[Errno 2] No such file or directory: 'C:\\\\Users\\\\nazar\\\\Desktop\\\\Uni\\\\Projects\\\\JB_internships\\\\Review_Stem\\\\benchmark_repo\\\\src\\\\server.ts'"
+    },
+    {
+      "iteration": 1,
+      "reviewer": "Admin Access Control & Sensitive Data Exposure Reviewer",
+      "tool_name": "read_file",
+      "path": "src/index.ts",
       "success": true,
-      "characters_returned": 275,
+      "characters_returned": 531,
       "error": null
     }
   ],
@@ -151,123 +148,128 @@
           ],
           "specific_checks": [
             "Verify the new `/stats` admin endpoint is protected by authentication middleware.",
-            "Verify only authorized admin roles/permissions can access `/stats`, not merely any authenticated user.",
-            "Check whether the admin router consistently applies middleware at router-level or per-route, and ensure the new route follows that pattern.",
-            "Review whether returning `totalUsers` and `revenue` exposes sensitive business metrics that should be restricted, redacted, or audited.",
-            "Confirm unauthorized and unauthenticated requests receive appropriate HTTP responses (401/403).",
-            "Recommend tests covering anonymous, non-admin, and admin access to `/stats`."
+            "Verify only authorized admin roles/permissions can access `/stats`; reject normal authenticated users.",
+            "Check whether the route should inherit router-level protection or requires explicit middleware on this handler.",
+            "Review the response payload for sensitive business metrics exposure (`totalUsers`, `revenue`) and confirm this is intended for admin-only use.",
+            "Confirm unauthorized and unauthenticated requests receive appropriate HTTP status codes (401/403).",
+            "Add or update tests covering admin access success and non-admin/anonymous access denial for `GET /stats`."
           ],
           "source_skills": [
             "admin-route-authentication-authorization-review"
           ],
           "risk_profile": [
-            "Privileged route exposed without auth",
+            "Privileged endpoint exposed without auth",
             "Missing role/permission checks on admin functionality",
-            "Sensitive admin/business data disclosure",
-            "Inconsistent middleware application across admin routes"
+            "Sensitive operational data leakage from admin APIs"
           ]
         },
         {
-          "persona_name": "Express Route Integration & API Contract Reviewer",
+          "persona_name": "Express Route Integration & API Consistency Reviewer",
           "focus_areas": [
-            "Express router wiring",
-            "Route consistency within `src/routes/admin.ts`",
-            "Response shape and maintainability",
-            "Test coverage for new endpoint"
+            "Route registration and middleware composition",
+            "API contract consistency",
+            "Basic handler robustness and maintainability"
           ],
           "specific_checks": [
-            "Confirm the new `GET /stats` route is mounted under the intended admin path and does not conflict with existing routes.",
-            "Check whether hardcoded metrics (`1000`, `50000`) are placeholders that should instead come from database/service layers before merge.",
-            "Review response naming and schema consistency for API consumers, including whether numeric fields need typing/documentation.",
-            "Ensure there are route-level tests validating success response and guarding against regressions for the new endpoint."
+            "Confirm `src/routes/admin.ts` is mounted under the intended admin path and existing admin router protections still apply to the new route.",
+            "Check the new handler follows repository conventions for route structure, error handling, and response formatting.",
+            "Verify the hard-coded stats payload is acceptable for this PR or flag as placeholder/mock logic if production behavior is expected.",
+            "Recommend tests for `GET /stats` response shape and status code under expected successful access conditions."
           ],
           "source_skills": [],
           "risk_profile": [
-            "Hardcoded operational data in production route",
-            "Undocumented API contract changes",
-            "Missing regression coverage for new admin endpoint"
+            "Route added without consistent middleware chain",
+            "Placeholder data accidentally shipped as production admin API"
           ]
         }
       ],
       "pruned_reviewer_architecture": [
         {
-          "persona_name": "Admin Access Control & Sensitive Metrics Reviewer",
+          "persona_name": "Admin Access Control & Sensitive Data Exposure Reviewer",
           "focus_areas": [
             "Admin route access control",
             "Authentication enforcement",
             "Authorization boundaries for privileged endpoints",
             "Exposure of sensitive operational/business data",
-            "HTTP behavior for unauthorized access"
+            "Route registration and inherited middleware protection"
           ],
           "specific_checks": [
             "Verify the new `/stats` admin endpoint is protected by authentication middleware.",
-            "Verify only authorized admin roles/permissions can access `/stats`, not merely any authenticated user.",
-            "Check whether the admin router consistently applies middleware at router-level or per-route, and ensure the new route follows that pattern.",
-            "Review whether returning `totalUsers` and `revenue` exposes sensitive business metrics that should be restricted, redacted, or audited.",
-            "Confirm unauthorized and unauthenticated requests receive appropriate HTTP responses (401/403).",
-            "Recommend tests covering anonymous, non-admin, and admin access to `/stats`."
+            "Verify only authorized admin roles/permissions can access `/stats`; reject normal authenticated users.",
+            "Check whether the route inherits router-level protection or requires explicit middleware on this handler.",
+            "Confirm `src/routes/admin.ts` is mounted under the intended admin path and existing admin router protections still apply to the new route.",
+            "Review the response payload for sensitive business metrics exposure (`totalUsers`, `revenue`) and confirm this is intended for admin-only use.",
+            "Confirm unauthorized and unauthenticated requests receive appropriate HTTP status codes (401/403).",
+            "Add or update tests covering admin access success and non-admin/anonymous access denial for `GET /stats`."
           ],
           "source_skills": [
             "admin-route-authentication-authorization-review"
           ],
           "risk_profile": [
-            "Privileged route exposed without auth",
+            "Privileged endpoint exposed without auth",
             "Missing role/permission checks on admin functionality",
-            "Sensitive admin/business data disclosure",
-            "Inconsistent middleware application across admin routes"
+            "Sensitive operational data leakage from admin APIs",
+            "Route added without consistent middleware chain"
           ]
         },
         {
-          "persona_name": "Express Admin Route Contract & Implementation Reviewer",
+          "persona_name": "Express Admin API Integration & Contract Reviewer",
           "focus_areas": [
-            "Express router wiring",
-            "Route consistency within `src/routes/admin.ts`",
-            "API response shape and maintainability",
-            "Implementation realism of returned metrics",
-            "Test coverage for new endpoint"
+            "Express route registration and composition",
+            "API contract consistency",
+            "Handler robustness and maintainability",
+            "Response shape and production readiness"
           ],
           "specific_checks": [
-            "Confirm the new `GET /stats` route is mounted under the intended admin path and does not conflict with existing routes.",
-            "Check whether hardcoded metrics (`1000`, `50000`) are placeholders that should instead come from database/service layers before merge.",
-            "Review response naming and schema consistency for API consumers, including whether numeric fields need typing/documentation.",
-            "Ensure there are route-level tests validating success response and guarding against regressions for the new endpoint."
+            "Check the new handler follows repository conventions for route structure, error handling, and response formatting.",
+            "Verify the hard-coded stats payload is acceptable for this PR or flag as placeholder/mock logic if production behavior is expected.",
+            "Recommend tests for `GET /stats` response shape and status code under expected successful access conditions.",
+            "Confirm the endpoint path and naming are consistent with existing admin API conventions."
           ],
           "source_skills": [],
           "risk_profile": [
-            "Hardcoded operational data in production route",
-            "Undocumented API contract changes",
-            "Missing regression coverage for new admin endpoint"
+            "Placeholder data accidentally shipped as production admin API",
+            "Inconsistent admin API behavior or response contract",
+            "Route implementation diverges from project conventions"
           ]
         }
       ],
       "stress_profiles": {
-        "Admin Access Control & Sensitive Metrics Reviewer": {
+        "Admin Access Control & Sensitive Data Exposure Reviewer": {
           "hypothetical_bugs": [
-            "The new `/stats` admin endpoint appears to be added without any authentication or authorization middleware, making sensitive metrics accessible to anonymous users if the router itself is not globally protected.",
-            "Even if authentication exists elsewhere, `/stats` may only require a logged-in session and not an explicit admin role/permission check, allowing non-admin authenticated users to access privileged business data.",
-            "The endpoint returns sensitive operational/business metrics (`totalUsers`, `revenue`) directly and may also produce incorrect HTTP behavior for unauthorized callers if it bypasses the established admin middleware pattern, leading to data disclosure instead of 401/403 responses."
+            "`GET /stats` is added with no visible authentication/authorization middleware, so it may be publicly reachable or accessible to any logged-in user instead of admin-only. Prioritize checking whether this router is actually mounted behind admin auth, and whether non-admin authenticated users are blocked with 403 while anonymous users get 401.",
+            "The new endpoint may bypass intended inherited protections if `src/routes/admin.ts` is mounted directly or inconsistently elsewhere. Verify the admin router still sits under the expected admin path and middleware chain, and that this handler did not accidentally create an unprotected privileged route due to route registration order or mounting differences.",
+            "`/stats` returns sensitive business metrics (`totalUsers`, `revenue`) with no filtering or guardrails. If access control is missing or too broad, this becomes an operational data leak; also check that tests cover admin success and denial cases for anonymous/non-admin callers so this exposure is caught."
           ]
         },
-        "Express Admin Route Contract & Implementation Reviewer": {
+        "Express Admin API Integration & Contract Reviewer": {
           "hypothetical_bugs": [
-            "`GET /stats` may be mounted under an unintended path or conflict with existing/admin route conventions, causing consumers to miss the endpoint or hit the wrong handler if `src/routes/admin.ts` is mounted somewhere unexpected.",
-            "The endpoint returns hardcoded operational metrics (`totalUsers: 1000`, `revenue: 50000`), which is highly likely to be placeholder logic accidentally merged into production instead of sourcing real values from a database/service layer.",
-            "The new response contract is untested and undocumented: field names/types (`totalUsers`, `revenue` as bare numbers) could drift from API expectations, and without route-level tests there is a high risk of silent regressions or schema inconsistency for admin clients."
+            "Hard-coded `/stats` payload may be placeholder/mock data accidentally exposed as a production admin API response, with no indication it is temporary or sourced from real services.",
+            "The new `GET /stats` route may violate existing admin API contract conventions: endpoint naming/path may be inconsistent, and the response shape (`{ totalUsers, revenue }`) may not match established wrappers, metadata, or formatting used elsewhere.",
+            "Handler robustness is minimal and may diverge from repository standards for admin routes: no auth/authorization middleware, no centralized error handling pattern, and no tests asserting expected 200 status and stable response schema for successful access."
           ]
         }
       },
       "draft_review_summaries": {
-        "Admin Access Control & Sensitive Metrics Reviewer": "2 comments (High:2). The added `/stats` route introduces a high-risk admin access control issue. In the current file, the admin router has no router-level middleware and the new endpoint has no per-route authentication or admin authorization",
-        "Express Admin Route Contract & Implementation Reviewer": "3 comments (High:1, Medium:2). The new admin stats route is simple and does not conflict within `src/routes/admin.ts` itself, but the implementation is not production-ready as written. The main concern is that it returns hardcoded metrics rather than "
+        "Admin Access Control & Sensitive Data Exposure Reviewer": "2 comments (Critical:1, High:1). The new `/stats` endpoint exposes sensitive admin-only metrics and is not safely protected in the current application wiring. Although `/admin` is mounted after global `requireAuth` and `requireAdmin`, the same router is",
+        "Express Admin API Integration & Contract Reviewer": "3 comments (High:1, Medium:2). This change adds a minimal admin `GET /stats` route, but in its current form it looks more like placeholder scaffolding than production-ready admin API behavior. The main concerns are the hard-coded stats payload, lack o"
       },
       "peer_finalized_review_summaries": {
-        "Admin Access Control & Sensitive Metrics Reviewer": "2 comments (High:2). From an admin access-control and sensitive-metrics perspective, the `/stats` route should not merge as written. The file shows no authentication or admin authorization on the new endpoint, yet it returns sensitive busine",
-        "Express Admin Route Contract & Implementation Reviewer": "4 comments (High:2, Medium:2). The admin stats route is not ready to merge as implemented. The most important issue is missing visible authentication/authorization on a privileged endpoint that returns sensitive business metrics. Beyond access control"
+        "Admin Access Control & Sensitive Data Exposure Reviewer": "2 comments (Critical:1, High:1). This review confirms a critical admin access-control flaw: the admin router is mounted on `/internal/admin` before auth/admin middleware, so the new sensitive `GET /stats` endpoint is publicly accessible there. The safes",
+        "Express Admin API Integration & Contract Reviewer": "3 comments (Critical:1, High:1, Medium:1). Re-evaluating the change with peer findings, the most important issue is an access-control flaw outside the route itself: `adminRouter` is mounted at an unprotected `/internal/admin` path, which makes the new privileged "
       },
-      "final_synthesized_review_summary": "2 comments (High:2). This change introduces an admin stats endpoint that is not ready to merge as written. The primary issue is a high-severity access-control gap: the route has no visible auth/admin guard despite returning sensitive busines",
-      "fitness_score": 0.9,
-      "deterministic_penalties": [],
-      "evaluator_comments": "Strong review: both findings are specific, actionable, and well-grounded in the shown route. The auth concern is especially valuable and includes concrete middleware/test guidance. The placeholder-metrics concern is also practical if the literals are indeed committed production behavior. The main limitation is confidence: the authorization issue depends on whether protection is applied when the router is mounted, so it should be phrased slightly more conditionally, and the hardcoded-values issue could be less severe if this is an intentional stub in non-production code. Overall, this is a high-quality review with only minor uncertainty around surrounding context.",
+      "final_synthesized_review_summary": "2 comments (Critical:1, High:1). This change introduces a merge-blocking access-control flaw: the admin router is exposed at `/internal/admin` before auth/admin middleware, making the new privileged `GET /stats` endpoint publicly accessible there. The s",
+      "fitness_score": 0.9099999999999999,
+      "deterministic_penalties": [
+        {
+          "code": "outside_changed_files",
+          "amount": 0.05,
+          "filepath": "src/index.ts",
+          "line_number": 7,
+          "reason": "Finding is grounded in the repo but outside the changed files."
+        }
+      ],
+      "evaluator_comments": "Excellent review: it identifies a concrete, likely real authorization bypass, ties it to exact files/routes, proposes implementable fixes at both mount and router level, and includes strong regression tests. It is well grounded rather than generic. Minor deduction only because the review is narrowly focused on the access-control issue and does not comment on whether there are any additional affected admin routes or broader correctness/performance concerns beyond this security flaw. [Sandbox explicitly penalized score due to grounding or fix-quality issues].",
       "mutation_applied": false,
       "mutation_reason": "",
       "mutation_delta": null
@@ -279,91 +281,98 @@
       {
         "stage": "differentiate",
         "prompt_tokens": 681,
-        "completion_tokens": 381,
-        "total_tokens": 1062
+        "completion_tokens": 358,
+        "total_tokens": 1039
       },
       {
         "stage": "prune_reviewers",
-        "prompt_tokens": 702,
-        "completion_tokens": 395,
-        "total_tokens": 1097
+        "prompt_tokens": 679,
+        "completion_tokens": 401,
+        "total_tokens": 1080
       },
       {
         "stage": "stress_profile",
-        "prompt_tokens": 450,
-        "completion_tokens": 136,
-        "total_tokens": 586
+        "prompt_tokens": 391,
+        "completion_tokens": 140,
+        "total_tokens": 531
       },
       {
         "stage": "stress_profile",
-        "prompt_tokens": 412,
-        "completion_tokens": 160,
-        "total_tokens": 572
+        "prompt_tokens": 477,
+        "completion_tokens": 201,
+        "total_tokens": 678
       },
       {
         "stage": "draft_review_tool_loop",
-        "prompt_tokens": 735,
+        "prompt_tokens": 668,
         "completion_tokens": 20,
-        "total_tokens": 755
+        "total_tokens": 688
       },
       {
         "stage": "draft_review_tool_loop",
-        "prompt_tokens": 710,
+        "prompt_tokens": 827,
         "completion_tokens": 84,
-        "total_tokens": 794
+        "total_tokens": 911
       },
       {
         "stage": "draft_review_tool_loop",
-        "prompt_tokens": 812,
-        "completion_tokens": 560,
-        "total_tokens": 1372
+        "prompt_tokens": 1239,
+        "completion_tokens": 531,
+        "total_tokens": 1770
       },
       {
         "stage": "draft_review_tool_loop",
-        "prompt_tokens": 1042,
-        "completion_tokens": 521,
-        "total_tokens": 1563
+        "prompt_tokens": 745,
+        "completion_tokens": 797,
+        "total_tokens": 1542
       },
       {
         "stage": "draft_review_parse",
-        "prompt_tokens": 904,
-        "completion_tokens": 440,
-        "total_tokens": 1344
+        "prompt_tokens": 1377,
+        "completion_tokens": 671,
+        "total_tokens": 2048
       },
       {
         "stage": "draft_review_parse",
-        "prompt_tokens": 1134,
-        "completion_tokens": 509,
-        "total_tokens": 1643
+        "prompt_tokens": 883,
+        "completion_tokens": 821,
+        "total_tokens": 1704
       },
       {
         "stage": "peer_finalize",
-        "prompt_tokens": 1498,
-        "completion_tokens": 653,
-        "total_tokens": 2151
+        "prompt_tokens": 2173,
+        "completion_tokens": 775,
+        "total_tokens": 2948
       },
       {
         "stage": "peer_finalize",
-        "prompt_tokens": 1488,
-        "completion_tokens": 957,
-        "total_tokens": 2445
+        "prompt_tokens": 2164,
+        "completion_tokens": 1130,
+        "total_tokens": 3294
       },
       {
         "stage": "synthesize_review",
-        "prompt_tokens": 2339,
-        "completion_tokens": 667,
-        "total_tokens": 3006
+        "prompt_tokens": 2773,
+        "completion_tokens": 668,
+        "total_tokens": 3441
       },
       {
         "stage": "fitness_evaluate",
-        "prompt_tokens": 917,
-        "completion_tokens": 135,
-        "total_tokens": 1052
+        "prompt_tokens": 997,
+        "completion_tokens": 100,
+        "total_tokens": 1097
       }
     ],
     "score_history": [
-      0.9
+      0.9099999999999999
     ],
-    "final_comment_count": 2
+    "final_comment_count": 2,
+    "skill_evolution_stats": {
+      "total_learned_skills": 11,
+      "total_usage": 0,
+      "total_success": 0,
+      "average_success_rate": 0.0,
+      "last_updated": "2026-05-11T19:57:21.828989"
+    }
   }
 }

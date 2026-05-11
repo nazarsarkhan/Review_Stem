@@ -53,7 +53,11 @@ class CodeComment(BaseModel):
         ...,
         description="A complete, concrete suggestion for how to fix the issue.",
     )
-    severity: str = Field(..., description="'Low', 'Medium', or 'High'.")
+    severity: str = Field(..., description="'Low', 'Medium', 'High', or 'Critical'.")
+    suggested_tests: Optional[List[str]] = Field(
+        default=None,
+        description="Concrete test cases to verify the fix and prevent regression.",
+    )
 
 
 class ReviewOutput(BaseModel):
