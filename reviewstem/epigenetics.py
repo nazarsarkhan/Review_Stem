@@ -3,20 +3,53 @@ from pathlib import Path
 import re
 from typing import List
 
+from .embeddings import EmbeddingProvider, cosine_sim
 from .logger import logger
 from .schemas import LearnedTrait, SelectedSkill
 from .skill_evolution import SkillEvolutionEngine
 
 
+# Weight of cosine similarity vs. term matching in the hybrid retrieval score.
+# 0.7/0.3 keeps semantic similarity as the dominant signal while preserving the
+# interpretable term-match reasons that show up in the audit trail.
+EMBEDDING_WEIGHT = 0.7
+TERM_WEIGHT = 0.3
+# Per-skill score this contributes per unit of cosine similarity (in [0, 1]).
+COSINE_SCORE_SCALE = 10.0
+
+
 class Epigenetics:
-    def __init__(self, memory_file: str = "skills.json", learned_skills_path: str | None = ".reviewstem/learned_skills.json"):
+    def __init__(
+        self,
+        memory_file: str = "skills.json",
+        learned_skills_path: str | None = ".reviewstem/learned_skills.json",
+        embedding_provider: EmbeddingProvider | None = None,
+    ):
         self.memory_file = Path(memory_file)
         self.traits: List[LearnedTrait] = []
         self.skill_catalog: list[dict] = []
         self.evolution_engine: SkillEvolutionEngine | None = (
             SkillEvolutionEngine(Path(learned_skills_path)) if learned_skills_path else None
         )
+        self.embedding_provider = embedding_provider
+        self._skill_embeddings: list[list[float] | None] = []
         self._load()
+        self._precompute_embeddings()
+
+    def _precompute_embeddings(self) -> None:
+        """Embed every skill in the catalog at load time and cache the result.
+
+        Falls back silently if the embedding provider is missing or refuses;
+        downstream retrieval will use pure term matching.
+        """
+        if self.embedding_provider is None or not self.skill_catalog:
+            self._skill_embeddings = [None] * len(self.skill_catalog)
+            return
+        skill_texts = [_skill_embedding_text(item) for item in self.skill_catalog]
+        self._skill_embeddings = self.embedding_provider.embed_batch(skill_texts)
+        n_ok = sum(1 for v in self._skill_embeddings if v is not None)
+        if n_ok:
+            logger.info("Epigenetics: Pre-computed embeddings for %d/%d skills.", n_ok, len(self.skill_catalog))
 
     def _load(self):
         if self.memory_file.exists():
@@ -81,20 +114,52 @@ class Epigenetics:
         case_id: str | None = None,
         limit: int = 5,
     ) -> list[SelectedSkill]:
-        """Return deterministic, auditable scored skills for the current review environment."""
+        """Return deterministic, auditable scored skills for the current review environment.
+
+        Hybrid scoring: when an embedding provider is wired in and successfully
+        produced a query vector, the final score is
+            EMBEDDING_WEIGHT * (cosine * COSINE_SCORE_SCALE) + TERM_WEIGHT * term_score
+        Otherwise it's pure term matching. Term match reasons are still recorded
+        so the audit trail shows *why* a skill was selected, not just *that* it was.
+        """
         diff_terms = set(_terms(f"{diff}\n{case_id or ''}"))
         repo_terms = set(_terms(repo_signals)) - diff_terms
-        scored: list[SelectedSkill] = []
 
-        for item in self.skill_catalog:
+        query_vec: list[float] | None = None
+        if self.embedding_provider is not None:
+            query_text = _query_embedding_text(diff, repo_signals, case_id)
+            query_vec = self.embedding_provider.embed(query_text)
+
+        scored: list[SelectedSkill] = []
+        for idx, item in enumerate(self.skill_catalog):
             selected = self._score_skill(item, diff_terms, repo_terms, case_id)
+            term_score = selected.total_score
+            cosine = 0.0
+            if query_vec is not None and idx < len(self._skill_embeddings):
+                skill_vec = self._skill_embeddings[idx]
+                if skill_vec is not None:
+                    cosine = cosine_sim(query_vec, skill_vec)
+
+            if query_vec is not None and any(v is not None for v in self._skill_embeddings):
+                hybrid = EMBEDDING_WEIGHT * (cosine * COSINE_SCORE_SCALE) + TERM_WEIGHT * term_score
+                selected = selected.model_copy(update={"total_score": round(hybrid, 3)})
+                if cosine > 0.2 and not selected.reason.startswith("Matched"):
+                    selected = selected.model_copy(
+                        update={"reason": f"Semantic match (cos={cosine:.2f}); {selected.reason}"}
+                    )
+                elif cosine > 0.2:
+                    selected = selected.model_copy(
+                        update={"reason": selected.reason + f"; semantic cos={cosine:.2f}"}
+                    )
+
             if selected.total_score > 0:
                 scored.append(selected)
 
         scored.sort(key=lambda skill: (-skill.total_score, skill.skill_name.lower()))
         deduped = _dedupe_skills(scored)
         if deduped:
-            logger.info("Epigenetics: Retrieved %s scored skills.", len(deduped[:limit]))
+            mode = "hybrid (cos+term)" if query_vec is not None else "term-only"
+            logger.info("Epigenetics: Retrieved %s skills via %s.", len(deduped[:limit]), mode)
         return deduped[:limit]
 
     def _score_skill(
@@ -217,6 +282,35 @@ def _dedupe_skills(skills: list[SelectedSkill]) -> list[SelectedSkill]:
         selected.append(skill)
         seen_families.add(family)
     return selected
+
+
+def _skill_embedding_text(item: dict) -> str:
+    """Build the text to embed for a skill catalog entry.
+
+    Concatenates the high-signal fields (name, trigger, checklist) and skips
+    boilerplate (test templates). Trimmed to 4000 chars so we never blow the
+    embedding model's input cap.
+    """
+    parts: list[str] = []
+    for field in ("skill_name", "trigger", "risk_profile", "checklist"):
+        value = item.get(field)
+        if isinstance(value, list):
+            parts.append("\n".join(str(x) for x in value))
+        elif value:
+            parts.append(str(value))
+    return "\n\n".join(p for p in parts if p)[:4000]
+
+
+def _query_embedding_text(diff: str, repo_signals: str, case_id: str | None) -> str:
+    """Build the query string to embed for retrieval.
+
+    Diff is the dominant signal; we keep enough repo context that retrieval
+    can disambiguate between similar diffs in different repos.
+    """
+    head = f"case: {case_id}\n" if case_id else ""
+    diff_chunk = diff[:3000]
+    repo_chunk = repo_signals[:500]
+    return f"{head}{diff_chunk}\n\n{repo_chunk}"
 
 
 def _skill_family(name: str) -> str:

@@ -113,7 +113,17 @@ async def load_review_guidance_async(diff: str, root: Path, repo_signals: str = 
         except Exception as e:
             logger.warning("OpenSpace MCP unavailable, falling back to Epigenetics: %s", e)
 
-    skill_memory = Epigenetics(str(root / "skills" / "skills.json"))
+    embedding_provider = None
+    if os.getenv("OPENAI_API_KEY") and os.getenv("REVIEWSTEM_DISABLE_EMBEDDINGS") != "1":
+        try:
+            from .embeddings import EmbeddingProvider
+            embedding_provider = EmbeddingProvider()
+        except Exception as e:
+            logger.warning("Embedding provider init failed; using term-only retrieval: %s", e)
+    skill_memory = Epigenetics(
+        str(root / "skills" / "skills.json"),
+        embedding_provider=embedding_provider,
+    )
     relevant = skill_memory.retrieve_selected_skills(diff, repo_signals=repo_signals, case_id=case_id)
     if relevant:
         return relevant
