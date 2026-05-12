@@ -256,11 +256,18 @@ reviewstem review
 # Review with custom parameters
 reviewstem review --max-iterations 3 --target-score 0.85
 
-# Run benchmark suite
+# Run benchmark suite (single seed, fast)
 reviewstem benchmark
+
+# Run multi-seed benchmark with 95% bootstrap CIs (5 seeds per cell)
+reviewstem benchmark --seeds 5
 
 # Run specific benchmark case
 reviewstem benchmark --benchmark-case admin_auth
+
+# Dependency-upgrade safety review (second task domain)
+reviewstem dep-upgrade-review path/to/manifest.diff
+reviewstem dep-upgrade-benchmark --seeds 5
 
 # Check environment and dependencies
 reviewstem doctor
@@ -271,6 +278,20 @@ reviewstem skills stats             # Show evolution statistics
 reviewstem skills export output.json  # Export learned skills
 reviewstem skills prune             # Remove underperforming skills
 ```
+
+### Multi-seed benchmarks
+
+`reviewstem benchmark --seeds N` runs each `(case, condition)` cell N times with varied seeds and temperatures (default schedule: `[(1,0.0),(2,0.2),(3,0.2),(4,0.5),(5,0.5)]`), then reports **mean ± stdev with 95% percentile bootstrap CIs** (2000 deterministic resamples). A cell where ReviewStem's CI overlaps the generic baseline's CI is flagged `sig?=no` and explicitly *not* claimed as a win.
+
+The on-disk LLM cache at `.reviewstem/llm_cache/` is keyed by `(prompt_hash, schema, temperature, seed)`, so reruns of the same configuration are free.
+
+### Embeddings retrieval
+
+When `OPENAI_API_KEY` is set, the Epigenetics fallback scorer combines `text-embedding-3-small` cosine similarity (weight 0.7) with the original term-matching score (weight 0.3). Skill embeddings are computed once at load and cached on disk in `.reviewstem/embeddings/`. Set `REVIEWSTEM_DISABLE_EMBEDDINGS=1` to force pure term matching.
+
+### Second domain: dependency upgrade safety
+
+`reviewstem/domains/dep_upgrade/` ships a second instantiation of the stem-cell pipeline for a different class of tasks: reviewing manifest diffs (pip / npm) for CVEs, breaking changes, license shifts, transitive bloat, and pinning quality. Uses the same `StemCell → MotorCortex → ImmuneSystem → MutationEngine → NeuralPruner` mechanics, with a domain-specific skill catalog, an OSV.dev-aware `DepUpgradeFitness`, and 8 benchmark cases with committed OSV cache fixtures for reproducibility.
 
 ## How Self-Evolution Works
 
