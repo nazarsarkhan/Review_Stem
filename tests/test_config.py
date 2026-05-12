@@ -15,7 +15,7 @@ def test_config_defaults(monkeypatch):
 
     config = ReviewStemConfig.from_env()
 
-    assert config.model == "gpt-5.4-mini"
+    assert config.model == "gpt-4o-mini"
     assert config.max_iterations == 2
     assert config.target_score == 0.90
     assert config.temperature == 0.0

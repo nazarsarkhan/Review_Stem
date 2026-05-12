@@ -168,6 +168,41 @@ def test_skill_evolution_statistics(temp_memory_path, sample_genome):
     assert abs(stats["average_success_rate"] - 0.6667) < 0.01
 
 
+def test_first_success_creates_candidate_not_promoted(temp_memory_path, sample_genome):
+    """One successful run should not immediately make a skill eligible for retrieval."""
+    engine = SkillEvolutionEngine(temp_memory_path, candidate_promotions_required=2)
+
+    learned = engine.learn_from_success(sample_genome, "case_a", fitness_score=0.92)
+
+    assert learned is not None
+    assert learned.status == "candidate"
+    assert learned.corroboration_count == 1
+    assert engine.get_promoted_skills() == []
+
+
+def test_second_corroboration_promotes_candidate(temp_memory_path, sample_genome):
+    """Two successful runs on the same persona should promote the skill."""
+    engine = SkillEvolutionEngine(temp_memory_path, candidate_promotions_required=2)
+
+    engine.learn_from_success(sample_genome, "case_a", fitness_score=0.92)
+    promoted = engine.learn_from_success(sample_genome, "case_b", fitness_score=0.91)
+
+    assert promoted is not None
+    assert promoted.status == "promoted"
+    assert promoted.corroboration_count == 2
+    assert len(engine.get_promoted_skills()) == 1
+
+
+def test_immediate_promotion_when_threshold_is_one(temp_memory_path, sample_genome):
+    """candidate_promotions_required=1 reproduces the old single-success behaviour."""
+    engine = SkillEvolutionEngine(temp_memory_path, candidate_promotions_required=1)
+
+    learned = engine.learn_from_success(sample_genome, "case_a", fitness_score=0.92)
+
+    assert learned.status == "promoted"
+    assert len(engine.get_promoted_skills()) == 1
+
+
 def test_skill_evolution_export_to_catalog(temp_memory_path, sample_genome, tmp_path):
     """Test that learned skills can be exported to catalog format."""
     engine = SkillEvolutionEngine(temp_memory_path)

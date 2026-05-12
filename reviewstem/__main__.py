@@ -1,6 +1,8 @@
 import asyncio
+import importlib.util
 import logging
 import os
+from functools import lru_cache
 from pathlib import Path
 import re
 import subprocess
@@ -30,11 +32,6 @@ from .llm_client import LLMClient
 from .logger import logger
 from .motor_cortex import MotorCortex
 from .mutation_engine import MutationEngine
-from .openspace_integration import (
-    ReviewStemSkillEngine,
-    ReviewStemExecutionAnalyzer,
-    ReviewStemEvolutionEngine,
-)
 from .schemas import EvaluationScore, GenomeCluster, IterationTrace, ReviewOutput, SelectedSkill, SpecializationState
 from .state import (
     compare_genomes,
@@ -94,24 +91,28 @@ def get_git_diff(config: ReviewStemConfig) -> tuple[str, bool]:
         return get_benchmark_case("sql_injection").diff, True
 
 
-def load_review_guidance(diff: str, root: Path, repo_signals: str = "", case_id: str | None = None, llm: Optional[LLMClient] = None) -> list[SelectedSkill]:
-    """Load reusable review guidance for the current diff using OpenSpace."""
-    # Try OpenSpace first
-    openspace_skills_dir = root / "skills" / "openspace"
-    if openspace_skills_dir.exists() and llm:
-        try:
-            skill_engine = ReviewStemSkillEngine(
-                skill_dirs=[openspace_skills_dir],
-                llm=llm
-            )
-            relevant = skill_engine.retrieve_skills(diff, repo_signals, case_id)
-            if relevant:
-                logger.info("OpenSpace: Retrieved %d skills with quality metrics", len(relevant))
-                return relevant
-        except Exception as e:
-            logger.warning("OpenSpace skill retrieval failed, falling back to Epigenetics: %s", e)
+@lru_cache(maxsize=1)
+def _openspace_available() -> bool:
+    return importlib.util.find_spec("openspace.mcp_server") is not None
 
-    # Fallback to old Epigenetics
+
+async def load_review_guidance_async(diff: str, root: Path, repo_signals: str = "", case_id: str | None = None, llm: Optional[LLMClient] = None) -> list[SelectedSkill]:
+    """Load reusable review guidance for the current diff.
+
+    Tries OpenSpace MCP first, falls back to Epigenetics if unavailable.
+    """
+    if _openspace_available():
+        try:
+            from .openspace_mcp import load_skills_from_openspace
+
+            skills = await load_skills_from_openspace(diff, repo_signals, limit=5)
+            if skills:
+                logger.info("OpenSpace MCP: Retrieved %d skills", len(skills))
+                return skills
+            logger.warning("OpenSpace MCP: No skills found, falling back to Epigenetics")
+        except Exception as e:
+            logger.warning("OpenSpace MCP unavailable, falling back to Epigenetics: %s", e)
+
     skill_memory = Epigenetics(str(root / "skills" / "skills.json"))
     relevant = skill_memory.retrieve_selected_skills(diff, repo_signals=repo_signals, case_id=case_id)
     if relevant:
@@ -149,34 +150,14 @@ async def run_review_pipeline(
     repo_map = Hippocampus.generate_repo_map(str(repo_path), max_files=config.repo_map_max_files)
     changed_files = extract_changed_files(diff)
     fitness = FitnessFunction(llm, repo_path=str(repo_path), changed_files=changed_files)
-    skills = load_review_guidance(diff, Path.cwd(), repo_signals=repo_map, case_id=case_name, llm=llm)
+    skills = await load_review_guidance_async(diff, Path.cwd(), repo_signals=repo_map, case_id=case_name, llm=llm)
 
     # Initialize skill evolution engine for persistent learning
     from .skill_evolution import SkillEvolutionEngine
-    skill_evolution = SkillEvolutionEngine(Path(".reviewstem/learned_skills.json"))
-
-    # Initialize OpenSpace components for skill learning
-    openspace_skills_dir = Path.cwd() / "skills" / "openspace"
-    skill_engine = None
-    execution_analyzer = None
-    evolution_engine = None
-
-    if openspace_skills_dir.exists():
-        try:
-            skill_engine = ReviewStemSkillEngine(
-                skill_dirs=[openspace_skills_dir],
-                llm=llm
-            )
-            await skill_engine.sync_skills()
-            execution_analyzer = ReviewStemExecutionAnalyzer(skill_engine.store)
-            evolution_engine = ReviewStemEvolutionEngine(
-                store=skill_engine.store,
-                registry=skill_engine.registry,
-                llm=llm
-            )
-            logger.info("OpenSpace skill learning enabled")
-        except Exception as e:
-            logger.warning("OpenSpace initialization failed: %s", e)
+    skill_evolution = SkillEvolutionEngine(
+        Path(".reviewstem/learned_skills.json"),
+        candidate_promotions_required=config.candidate_promotions_required,
+    )
 
     state = SpecializationState(
         run_id=new_run_id(case_name),
@@ -207,7 +188,6 @@ async def run_review_pipeline(
     final_review: ReviewOutput | None = None
     evaluation: EvaluationScore | None = None
     scores: list[float] = []
-    evolved_skills_list = []
 
     for iteration in range(1, config.max_iterations + 1):
         if not config.quiet:
@@ -235,24 +215,6 @@ async def run_review_pipeline(
         final_review = await immune.synthesize_and_criticize(finalized_reviews)
         evaluation = await fitness.evaluate(final_review)
         scores.append(evaluation.score)
-
-        # OpenSpace: Analyze execution for skill learning
-        execution_analysis = None
-        if execution_analyzer and skill_engine:
-            try:
-                execution_analysis = execution_analyzer.analyze_review_execution(
-                    run_id=state.run_id,
-                    selected_skills=skills,
-                    review_output=final_review,
-                    fitness_score=evaluation.score,
-                    deterministic_penalties=fitness.last_penalties,
-                    target_score=config.target_score
-                )
-                logger.info("Execution analysis: success=%s, candidate_for_evolution=%s",
-                           execution_analysis.overall_success,
-                           execution_analysis.candidate_for_evolution)
-            except Exception as e:
-                logger.warning("Execution analysis failed: %s", e)
 
         iteration_trace = IterationTrace(
             iteration=iteration,
@@ -282,16 +244,20 @@ async def run_review_pipeline(
             state.stop_reason = f"target_score_met: {evaluation.score:.2f} >= {config.target_score:.2f}"
             state.iterations.append(iteration_trace)
 
-            # Learn from successful review
+            # Learn from successful review (candidate tier; promotes after corroboration)
             for genome in current_genomes:
                 learned = skill_evolution.learn_from_success(
                     genome=genome,
                     case_id=case_name,
                     fitness_score=evaluation.score,
-                    min_score_threshold=0.85
+                    min_score_threshold=config.learn_threshold,
                 )
                 if learned:
-                    logger.info(f"Learned new skill from successful review: {learned.skill_name}")
+                    logger.info(
+                        "Recorded %s skill from successful review: %s",
+                        learned.status,
+                        learned.skill_name,
+                    )
 
             if not config.quiet:
                 console.print("  [green]Quality threshold met.[/green]")
@@ -307,22 +273,6 @@ async def run_review_pipeline(
                 f"Evaluator feedback: {evaluation.feedback}"
             )
             iteration_trace.mutation_delta = compare_genomes(old_genomes, current_genomes)
-
-            # OpenSpace: Evolve skills if needed
-            if execution_analysis and execution_analysis.candidate_for_evolution and evolution_engine:
-                try:
-                    evolved_skills = await evolution_engine.evolve_skills(
-                        analysis=execution_analysis,
-                        review_output=final_review,
-                        deterministic_penalties=fitness.last_penalties
-                    )
-                    if evolved_skills:
-                        evolved_skills_list.extend(evolved_skills)
-                        logger.info("Evolved %d skills in iteration %d", len(evolved_skills), iteration)
-                        if not config.quiet:
-                            console.print(f"  [magenta]Evolved {len(evolved_skills)} skills[/magenta]")
-                except Exception as e:
-                    logger.warning("Skill evolution failed: %s", e)
 
             state.iterations.append(iteration_trace)
             if current_genomes:
@@ -347,10 +297,6 @@ async def run_review_pipeline(
         "score_history": scores,
         "final_comment_count": len(final_review.comments),
     }
-
-    # Add evolved skills to state
-    if evolved_skills_list:
-        state.outputs["evolved_skills"] = evolved_skills_list
 
     # Add skill evolution statistics to state
     skill_stats = skill_evolution.get_skill_statistics()
@@ -396,7 +342,7 @@ async def run_skilled_baseline_review(
     """Run a single generic reviewer with selected skill text but no specialization loop."""
     llm = LLMClient(config)
     repo_map = Hippocampus.generate_repo_map(str(repo_path), max_files=config.repo_map_max_files)
-    skills = load_review_guidance(diff, Path.cwd(), repo_signals=repo_map, case_id=case_id)
+    skills = await load_review_guidance_async(diff, Path.cwd(), repo_signals=repo_map, case_id=case_id)
     skill_text = "\n".join(skill.model_dump_json() for skill in skills)
     prompt = f"""
 You are a general-purpose code reviewer. Use the selected review skills below, but do not create
@@ -653,7 +599,11 @@ def skills_command(
         console.print(f"[green]Exported learned skills to {output}[/green]")
 
     elif action == "prune":
-        evolution.prune_underperforming_skills(min_success_rate=0.5, min_usage=3)
+        config = ReviewStemConfig.from_env()
+        evolution.prune_underperforming_skills(
+            min_success_rate=config.prune_min_success_rate,
+            min_usage=config.prune_min_usage,
+        )
         console.print("[green]Pruned underperforming skills[/green]")
 
     else:

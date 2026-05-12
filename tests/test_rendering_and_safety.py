@@ -21,6 +21,7 @@ def test_polish_suggested_fix_preserves_bound_parameter():
 def test_read_file_blocks_path_traversal():
     motor = MotorCortex(DummyLLM(), repo_path="benchmark_repo")
 
-    content = motor._read_file("../pyproject.toml")
+    content, event = motor._read_file_event("../pyproject.toml", reviewer="test", iteration=0)
 
     assert "outside the repository" in content
+    assert event.success is False

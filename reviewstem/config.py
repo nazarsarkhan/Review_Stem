@@ -33,19 +33,27 @@ class ReviewStemConfig:
     diff_limit: int
     repo_map_max_files: int
     file_read_limit: int
+    learn_threshold: float = 0.85
+    prune_min_success_rate: float = 0.5
+    prune_min_usage: int = 3
+    candidate_promotions_required: int = 2
     quiet: bool = False
 
     @classmethod
     def from_env(cls) -> "ReviewStemConfig":
         """Load configuration from environment variables."""
         return cls(
-            model=os.getenv("REVIEWSTEM_MODEL", "gpt-5.4-mini"),
+            model=os.getenv("REVIEWSTEM_MODEL", "gpt-4o-mini"),
             max_iterations=get_int_env("REVIEWSTEM_MAX_ITERATIONS", 2),
             target_score=get_float_env("REVIEWSTEM_TARGET_SCORE", 0.90),
             temperature=get_float_env("REVIEWSTEM_TEMPERATURE", 0.0, maximum=2.0),
             diff_limit=get_int_env("REVIEWSTEM_DIFF_LIMIT", 12000),
             repo_map_max_files=get_int_env("REVIEWSTEM_REPO_MAP_MAX_FILES", 150),
             file_read_limit=get_int_env("REVIEWSTEM_FILE_READ_LIMIT", 8000),
+            learn_threshold=get_float_env("REVIEWSTEM_LEARN_THRESHOLD", 0.85),
+            prune_min_success_rate=get_float_env("REVIEWSTEM_PRUNE_MIN_SUCCESS_RATE", 0.5),
+            prune_min_usage=get_int_env("REVIEWSTEM_PRUNE_MIN_USAGE", 3),
+            candidate_promotions_required=get_int_env("REVIEWSTEM_CANDIDATE_PROMOTIONS", 2),
         )
 
     def with_overrides(

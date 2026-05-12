@@ -22,6 +22,39 @@ class FitnessFunction:
 
         penalties: list[DeterministicPenalty] = []
         seen_findings: set[tuple[str, int, str]] = set()
+
+        if not review.comments:
+            penalties.append(DeterministicPenalty(
+                code="empty_review",
+                amount=0.30,
+                reason="Review contained no comments; the agent produced nothing to evaluate.",
+            ))
+
+        high_severity_total = 0
+        high_severity_with_tests = 0
+        for comment in review.comments:
+            if comment.severity.lower() in {"high", "critical"}:
+                high_severity_total += 1
+                if comment.suggested_tests:
+                    high_severity_with_tests += 1
+        if high_severity_total >= 2 and high_severity_with_tests == 0:
+            penalties.append(DeterministicPenalty(
+                code="no_tests_for_high_severity",
+                amount=0.10,
+                reason="Multiple high-severity findings but no suggested tests anywhere.",
+            ))
+
+        if review.comments:
+            critical_share = sum(
+                1 for c in review.comments if c.severity.lower() == "critical"
+            ) / len(review.comments)
+            if len(review.comments) >= 4 and critical_share > 0.75:
+                penalties.append(DeterministicPenalty(
+                    code="severity_inflation",
+                    amount=0.05,
+                    reason="More than 75% of findings flagged Critical; severity is likely inflated.",
+                ))
+
         for comment in review.comments:
             full_path = (self.repo_path / comment.filepath).resolve()
             try:

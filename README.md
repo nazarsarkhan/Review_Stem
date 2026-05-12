@@ -1,6 +1,10 @@
 # ReviewStem: A Self-Evolving Security and Code Quality Review Agent
 
+> **Read this first:** [`WRITEUP.md`](WRITEUP.md) — 4-page submission writeup covering approach, results, surprises, failures, and next steps.
+
 ReviewStem is a **self-evolving agentic system** for comprehensive pull request review. It detects security vulnerabilities, code quality issues, performance problems, and generates test cases. The agent **learns from successful reviews** and evolves across sessions by saving high-performing reviewer genomes as new skills.
+
+**Requires Python 3.10+.**
 
 ## Key Features
 
@@ -27,19 +31,22 @@ ReviewStem is a **self-evolving agentic system** for comprehensive pull request 
 ## Quick Start
 
 ```bash
-# Install
+# 1. Install
 pip install -e .
 
-# Configure (create .env from .env.example)
-OPENAI_API_KEY=your_key_here
-REVIEWSTEM_MAX_ITERATIONS=2
-REVIEWSTEM_TARGET_SCORE=0.90
+# 2. Configure
+cp .env.example .env
+# then edit .env and set OPENAI_API_KEY=sk-...
 
-# Run
-reviewstem review
-reviewstem benchmark
+# 3. Verify
 reviewstem doctor
+
+# 4. Run
+reviewstem review            # review the current git diff
+reviewstem benchmark         # run all 10 benchmark cases
 ```
+
+**OpenSpace MCP is optional.** If you do not install it, ReviewStem transparently falls back to the built-in Epigenetics skill retrieval — reviews still run. To enable OpenSpace, see [`OPENSPACE_INTEGRATION.md`](OPENSPACE_INTEGRATION.md).
 
 ## What ReviewStem Detects
 
@@ -177,6 +184,26 @@ This avoids false negatives where the reviewer correctly identifies the root cau
 
 Some cases saturate because the generic baseline already catches obvious issues. Context-required cases evaluate whether ReviewStem's specialization provides additional evidence through tool use and repository-aware review.
 
+### Measured Results
+
+Last full run, gpt-4o-mini, temperature 0:
+
+| Case | Generic | Generic+Skills | ReviewStem | Δ vs Generic |
+| --- | ---: | ---: | ---: | ---: |
+| sql_injection | 0.85 | 0.85 | **1.00** | +0.15 |
+| admin_auth | 1.00 | 1.00 | 1.00 | 0.00 |
+| cache_invalidation | 0.90 | 0.75 | **1.00** | +0.10 |
+| route_mounting_auth_bypass | 0.85 | 0.85 | **1.00** | +0.15 |
+| cache_key_mismatch | 1.00 | 1.00 | 1.00 | 0.00 |
+| async_swallowed_error | 1.00 | 1.00 | 1.00 | 0.00 |
+| xss_vulnerability | 0.75 | 0.75 | **0.85** | +0.10 |
+| unhandled_promise_rejection | 0.55 | 0.65 | **0.70** | +0.15 |
+| missing_auth_tests | 0.80 | 0.80 | **0.90** | +0.10 |
+| n_plus_one_query | 0.65 | 0.75 | **0.90** | +0.25 |
+| **Mean** | **0.835** | **0.840** | **0.925** | **+0.090** |
+
+ReviewStem wins or ties every case (7 wins, 3 ties) at the cost of ~17× more LLM calls than the single-prompt baseline. See [`WRITEUP.md`](WRITEUP.md) §3 for analysis.
+
 ## Agent Trace Artifacts
 
 Every ReviewStem run writes specialization state:
@@ -202,7 +229,7 @@ These files show:
 # Required
 OPENAI_API_KEY=your_key_here
 
-# Optional (defaults shown)
+# Pipeline (defaults shown)
 REVIEWSTEM_MODEL=gpt-4o-mini
 REVIEWSTEM_MAX_ITERATIONS=2
 REVIEWSTEM_TARGET_SCORE=0.90
@@ -210,7 +237,15 @@ REVIEWSTEM_TEMPERATURE=0
 REVIEWSTEM_DIFF_LIMIT=12000
 REVIEWSTEM_REPO_MAP_MAX_FILES=150
 REVIEWSTEM_FILE_READ_LIMIT=8000
+
+# Cross-session evolution (defaults shown)
+REVIEWSTEM_LEARN_THRESHOLD=0.85          # min fitness to record a genome as a candidate
+REVIEWSTEM_CANDIDATE_PROMOTIONS=2        # # of corroborating successes before a candidate is used
+REVIEWSTEM_PRUNE_MIN_SUCCESS_RATE=0.5    # promoted skills below this rate are pruned
+REVIEWSTEM_PRUNE_MIN_USAGE=3             # minimum uses before pruning is considered
 ```
+
+Multi-provider variables in `.env.example` (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`) are for the optional OpenSpace MCP server, not ReviewStem itself.
 
 ## Commands
 
@@ -239,42 +274,53 @@ reviewstem skills prune             # Remove underperforming skills
 
 ## How Self-Evolution Works
 
-### 1. Learning from Success
-When a review achieves high fitness (≥0.85), ReviewStem automatically:
-- Extracts the successful reviewer genome
-- Saves it as a new learned skill in `.reviewstem/learned_skills.json`
-- Records the fitness score and source case
+```mermaid
+flowchart LR
+    A[Successful review<br/>score >= LEARN_THRESHOLD] --> B{Persona seen before?}
+    B -->|no| C[Record as candidate<br/>corroboration_count = 1]
+    B -->|yes| D[Increment corroboration_count]
+    D --> E{>= CANDIDATE_PROMOTIONS?}
+    E -->|no| F[Stay candidate]
+    E -->|yes| G[Promote to learned]
+    C --> H[(.reviewstem/learned_skills.json)]
+    F --> H
+    G --> H
+    H --> I[Loaded by Epigenetics<br/>in next review]
+    I --> J{Underperforming after MIN_USAGE?}
+    J -->|yes| K[Pruned]
+```
 
-### 2. Cross-Session Reuse
-In future reviews, learned skills are:
-- Automatically loaded alongside curated skills
-- Scored and retrieved based on diff relevance
-- Used to construct specialized reviewers
+### 1. Learning from Success (candidate tier)
+When a review achieves high fitness (≥ `REVIEWSTEM_LEARN_THRESHOLD`, default 0.85), ReviewStem records the genome as a **candidate**. Candidates do NOT yet participate in retrieval — this prevents a single lucky run from polluting the skill catalog.
+
+### 2. Promotion via Corroboration
+A candidate becomes a **promoted** skill once it has been corroborated by `REVIEWSTEM_CANDIDATE_PROMOTIONS` (default 2) independent successful reviews on the same persona. Only promoted skills are loaded by the retrieval step in future reviews.
 
 ### 3. Usage Tracking
-Each learned skill tracks:
+Each promoted skill tracks:
 - **Usage count** - How many times it was selected
 - **Success count** - How many times it achieved target fitness
 - **Success rate** - Percentage of successful uses
 
 ### 4. Automatic Pruning
-Skills with low success rates (<50%) after 3+ uses are automatically removed to maintain quality.
+Promoted skills below `REVIEWSTEM_PRUNE_MIN_SUCCESS_RATE` (default 50%) after `REVIEWSTEM_PRUNE_MIN_USAGE` (default 3) uses are removed via `reviewstem skills prune`.
 
 ### Example Evolution Flow
 
 ```
 Review 1: SQL injection detected (fitness: 0.92)
-  → Learns "SQL Injection Specialist" skill
-  
-Review 2: Similar SQL issue in different repo
-  → Loads learned skill, detects issue faster
-  → Records successful usage
-  
-Review 3: XSS vulnerability (fitness: 0.88)
-  → Learns "XSS Detection Expert" skill
-  
-Review 10: Learned skill underperforms
-  → Automatically pruned after 3 failures
+  → Records "SQL Injection Specialist" as CANDIDATE (1/2 corroborations)
+
+Review 2: Different SQL issue, same persona produced (fitness: 0.91)
+  → Corroboration count 2/2 → promoted to LEARNED
+  → Becomes eligible for retrieval
+
+Review 3: Future PR with SQL change
+  → Promoted skill participates in scored retrieval
+  → Selected if it outscores curated skills for this diff
+
+Review 10: Promoted skill underperforms on real diffs
+  → reviewstem skills prune removes it once success rate < 50% over 3+ uses
 ```
 
 ## Verification
@@ -321,11 +367,10 @@ reviewstem benchmark
 
 - LLM fitness remains in the loop (deterministic checks are grounding constraints, not complete proof)
 - Skill retrieval uses term matching, not embeddings
-- No persistent skill learning across runs
 - Limited to file reading (no call graph or test graph tools)
 - Single-run evaluation (no confidence intervals)
 
-With more time, improvements would include embeddings-based retrieval, larger hidden benchmark suite, persistent learned skills, richer tool access, and multi-run statistical analysis.
+With more time, improvements would include embeddings-based retrieval, larger hidden benchmark suite, richer tool access, and multi-run statistical analysis.
 
 ## Project Structure
 

@@ -21,6 +21,8 @@ class ReviewVisualizer:
                 diagram.append(f"    {prev_id} -->|Revision| {node_id}")
 
         safe_case_name = re.sub(r"[^A-Za-z0-9_.-]", "_", case_name)
-        output_file = Path(f"evolution_graph_{safe_case_name}.mmd")
+        outputs_dir = Path("outputs")
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+        output_file = outputs_dir / f"evolution_graph_{safe_case_name}.mmd"
         output_file.write_text("\n".join(diagram), encoding="utf-8")
         logger.info("Evolution graph saved to %s", output_file)

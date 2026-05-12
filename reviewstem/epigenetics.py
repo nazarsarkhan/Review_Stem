@@ -9,11 +9,13 @@ from .skill_evolution import SkillEvolutionEngine
 
 
 class Epigenetics:
-    def __init__(self, memory_file: str = "skills.json", learned_skills_path: str = ".reviewstem/learned_skills.json"):
+    def __init__(self, memory_file: str = "skills.json", learned_skills_path: str | None = ".reviewstem/learned_skills.json"):
         self.memory_file = Path(memory_file)
         self.traits: List[LearnedTrait] = []
         self.skill_catalog: list[dict] = []
-        self.evolution_engine = SkillEvolutionEngine(Path(learned_skills_path))
+        self.evolution_engine: SkillEvolutionEngine | None = (
+            SkillEvolutionEngine(Path(learned_skills_path)) if learned_skills_path else None
+        )
         self._load()
 
     def _load(self):
@@ -27,8 +29,12 @@ class Epigenetics:
             except Exception as e:
                 logger.error("Epigenetics: Failed to load memory: %s", e)
 
-        # Load learned skills into catalog
-        learned_skills = self.evolution_engine.get_learned_skills()
+        if self.evolution_engine is None:
+            return
+
+        # Only promoted (corroborated) skills participate in retrieval;
+        # candidates accumulate confirmation in the background.
+        learned_skills = self.evolution_engine.get_promoted_skills()
         for learned in learned_skills:
             learned_dict = {
                 "skill_name": learned.skill_name,

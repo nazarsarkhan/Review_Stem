@@ -2,7 +2,7 @@ from reviewstem.epigenetics import Epigenetics
 
 
 def test_epigenetics_loads_skill_catalog_schema():
-    memory = Epigenetics("skills/skills.json")
+    memory = Epigenetics("skills/skills.json", learned_skills_path=None)
 
     assert memory.traits
     assert all(trait.trigger_context for trait in memory.traits)
@@ -10,7 +10,7 @@ def test_epigenetics_loads_skill_catalog_schema():
 
 
 def test_epigenetics_retrieves_relevant_admin_skill():
-    memory = Epigenetics("skills/skills.json")
+    memory = Epigenetics("skills/skills.json", learned_skills_path=None)
 
     relevant = memory.retrieve_relevant_skills("diff --git a/src/routes/admin.ts b/src/routes/admin.ts")
 
@@ -19,7 +19,7 @@ def test_epigenetics_retrieves_relevant_admin_skill():
 
 
 def test_epigenetics_selects_sql_skill_for_query_diff():
-    memory = Epigenetics("skills/skills.json")
+    memory = Epigenetics("skills/skills.json", learned_skills_path=None)
 
     selected = memory.retrieve_selected_skills(
         "db.query(`SELECT * FROM users WHERE name = '${name}'`)"
@@ -31,7 +31,7 @@ def test_epigenetics_selects_sql_skill_for_query_diff():
 
 
 def test_epigenetics_selected_skill_is_auditable():
-    memory = Epigenetics("skills/skills.json")
+    memory = Epigenetics("skills/skills.json", learned_skills_path=None)
 
     selected = memory.retrieve_selected_skills("diff --git a/src/routes/admin.ts b/src/routes/admin.ts")
 

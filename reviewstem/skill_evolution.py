@@ -3,9 +3,9 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .logger import logger
 from .schemas import ReviewGenome
@@ -13,6 +13,8 @@ from .schemas import ReviewGenome
 
 class LearnedSkill(BaseModel):
     """A skill learned from a successful review session."""
+
+    model_config = ConfigDict(extra="ignore")
 
     skill_name: str = Field(..., description="Name of the learned skill")
     trigger: str = Field(..., description="When to use this skill")
@@ -26,6 +28,14 @@ class LearnedSkill(BaseModel):
     review_genome: ReviewGenome = Field(..., description="Original reviewer genome")
     usage_count: int = Field(default=0, description="Number of times this skill was used")
     success_count: int = Field(default=0, description="Number of successful uses")
+    status: Literal["candidate", "promoted"] = Field(
+        default="candidate",
+        description="'candidate' until corroborated by N successes; 'promoted' once eligible for retrieval.",
+    )
+    corroboration_count: int = Field(
+        default=1,
+        description="Number of independent successful reviews supporting this skill.",
+    )
 
 
 class SkillMemory(BaseModel):
@@ -36,11 +46,19 @@ class SkillMemory(BaseModel):
 
 
 class SkillEvolutionEngine:
-    """Manages persistent skill learning and evolution."""
+    """Manages persistent skill learning and evolution.
 
-    def __init__(self, memory_path: Path):
+    Genomes that pass the fitness threshold are stored as candidates first.
+    A candidate becomes a promoted skill (and starts participating in
+    retrieval) only after `candidate_promotions_required` corroborating
+    successes. This prevents one-shot lucky runs from polluting the
+    catalog.
+    """
+
+    def __init__(self, memory_path: Path, candidate_promotions_required: int = 2):
         self.memory_path = memory_path
         self.memory_path.parent.mkdir(parents=True, exist_ok=True)
+        self.candidate_promotions_required = max(1, candidate_promotions_required)
         self.memory = self._load_memory()
 
     def _load_memory(self) -> SkillMemory:
@@ -73,18 +91,38 @@ class SkillEvolutionEngine:
         fitness_score: float,
         min_score_threshold: float = 0.85
     ) -> Optional[LearnedSkill]:
-        """Learn a new skill from a successful review."""
+        """Record a successful genome as a candidate; promote on corroboration.
+
+        Returns the (new or updated) LearnedSkill, or None if the fitness
+        score did not clear the threshold.
+        """
         if fitness_score < min_score_threshold:
             logger.debug(f"Fitness score {fitness_score} below threshold {min_score_threshold}, not learning")
             return None
 
-        # Check if we already have a similar skill
         for existing in self.memory.learned_skills:
             if existing.review_genome.persona_name == genome.persona_name:
-                logger.debug(f"Similar skill already exists: {existing.skill_name}")
-                return None
+                existing.corroboration_count += 1
+                if (
+                    existing.status == "candidate"
+                    and existing.corroboration_count >= self.candidate_promotions_required
+                ):
+                    existing.status = "promoted"
+                    logger.info(
+                        "Promoted candidate -> learned: %s (corroborations=%d)",
+                        existing.skill_name,
+                        existing.corroboration_count,
+                    )
+                else:
+                    logger.debug(
+                        "Corroborated candidate %s (%d/%d)",
+                        existing.skill_name,
+                        existing.corroboration_count,
+                        self.candidate_promotions_required,
+                    )
+                self._save_memory()
+                return existing
 
-        # Create new learned skill
         skill_name = f"{genome.persona_name} (Learned)"
         trigger = f"Use when reviewing {', '.join(genome.focus_areas[:3])}"
 
@@ -92,32 +130,40 @@ class SkillEvolutionEngine:
             skill_name=skill_name,
             trigger=trigger,
             risk_profile=genome.risk_profile,
-            context_plan=[
-                f"Focus on {area}" for area in genome.focus_areas[:5]
-            ],
+            context_plan=[f"Focus on {area}" for area in genome.focus_areas[:5]],
             checklist=genome.specific_checks,
             test_templates=[
                 "Verify the identified issue with a test case",
                 "Test edge cases and boundary conditions",
-                "Ensure regression tests prevent reintroduction"
+                "Ensure regression tests prevent reintroduction",
             ],
             source_case=case_id,
             success_score=fitness_score,
             learned_at=datetime.now().isoformat(),
             review_genome=genome,
             usage_count=0,
-            success_count=0
+            success_count=0,
+            status="promoted" if self.candidate_promotions_required <= 1 else "candidate",
+            corroboration_count=1,
         )
 
         self.memory.learned_skills.append(learned_skill)
         self._save_memory()
-
-        logger.info(f"Learned new skill: {skill_name} (score: {fitness_score:.2f})")
+        logger.info(
+            "Recorded %s skill: %s (score: %.2f)",
+            learned_skill.status,
+            skill_name,
+            fitness_score,
+        )
         return learned_skill
 
     def get_learned_skills(self) -> List[LearnedSkill]:
-        """Get all learned skills."""
+        """Get all skills (candidate + promoted)."""
         return self.memory.learned_skills
+
+    def get_promoted_skills(self) -> List[LearnedSkill]:
+        """Get only skills that have been corroborated and are eligible for retrieval."""
+        return [s for s in self.memory.learned_skills if s.status == "promoted"]
 
     def record_skill_usage(self, skill_name: str, success: bool):
         """Record usage of a learned skill."""

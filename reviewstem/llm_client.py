@@ -1,17 +1,12 @@
 import asyncio
 import os
-from pathlib import Path
 from typing import Any, List, Optional, Type, TypeVar
 
 import openai
-from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from .config import ReviewStemConfig
 from .logger import logger
-
-load_dotenv(Path.cwd() / ".env")
-load_dotenv(Path.home() / ".reviewstem" / ".env")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -19,7 +14,7 @@ T = TypeVar("T", bound=BaseModel)
 class LLMClient:
     def __init__(self, config: ReviewStemConfig | None = None):
         self.config = config or ReviewStemConfig.from_env()
-        self.api_key = openai.api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise RuntimeError("OPENAI_API_KEY is not set. Create a .env file or export it before running ReviewStem.")
 

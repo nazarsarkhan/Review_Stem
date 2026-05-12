@@ -1507,7 +1507,157 @@
       },
       "usage_count": 0,
       "success_count": 0
+    },
+    {
+      "skill_name": "OpenSpace MCP Async Integration & Regression Reviewer (Learned)",
+      "trigger": "Use when reviewing reviewstem/__main__.py OpenSpace MCP integration path, asyncio event-loop usage and sync/async boundary safety, subprocess-based availability detection and fallback behavior",
+      "risk_profile": [
+        "Runtime failure from invalid event-loop control",
+        "Unhandled async exceptions",
+        "Optional integration regressions",
+        "Fallback path silently not exercised",
+        "CLI availability detection brittleness",
+        "Behavior regression from removed OpenSpace evolution flow",
+        "Feature loss hidden by documentation expansion"
+      ],
+      "context_plan": [
+        "Focus on reviewstem/__main__.py OpenSpace MCP integration path",
+        "Focus on asyncio event-loop usage and sync/async boundary safety",
+        "Focus on subprocess-based availability detection and fallback behavior",
+        "Focus on feature regression from replacing prior OpenSpace integration classes",
+        "Focus on safe degradation when external MCP tooling is unavailable"
+      ],
+      "checklist": [
+        "Verify `load_review_guidance` handles async execution correctly in both no-loop and already-running-loop contexts; specifically check whether calling `loop.run_until_complete(...)` on an already running loop is invalid and would raise at runtime.",
+        "Check whether `load_review_guidance` is invoked from async code paths in this repository, making the current event-loop branch practically unsafe.",
+        "Review whether importing `load_skills_from_openspace` inside the function is sufficient to preserve optional dependency behavior, or whether the new hard dependency `mcp>=1.0.0` in `pyproject.toml` changes fallback assumptions.",
+        "Assess whether probing availability via `subprocess.run([\"openspace-mcp\", \"--help\"], timeout=2)` is reliable, performant, and portable; check failure modes when the binary exists but hangs, writes to stderr, or is absent from PATH.",
+        "Confirm fallback to Epigenetics remains intact for all OpenSpace failure modes: missing binary, import failure, timeout, nonzero exit, MCP retrieval exception, and empty skill results.",
+        "Check whether repeated subprocess probing on every guidance load introduces unnecessary latency and whether caching availability would be safer.",
+        "Verify logging accurately distinguishes 'OpenSpace unavailable', 'OpenSpace returned no skills', and 'OpenSpace call failed' so operators can diagnose integration issues.",
+        "Compare removed imports and pipeline logic (`ReviewStemSkillEngine`, `ReviewStemExecutionAnalyzer`, `ReviewStemEvolutionEngine`) against the new MCP-only retrieval path to determine whether skill syncing, execution analysis, and evolution were silently dropped.",
+        "Do not claim a regression unless it is evidenced in the changed code or surrounding repository docs; explicitly separate confirmed removals from inferred capability changes.",
+        "Check whether README language about 'self-evolving skills' and 'quality monitoring' is still supported after deletion of execution analysis and evolution hooks from `run_review_pipeline`.",
+        "Verify there are no remaining references elsewhere in the repository expecting `evolved_skills_list`, execution analysis, or OpenSpace learning side effects.",
+        "Assess whether the new implementation preserves prior behavior when OpenSpace assets exist locally but the `openspace-mcp` binary is unavailable.",
+        "Review whether the fallback messaging and docs clearly explain that current integration is retrieval-only if that is now the case.",
+        "Require tests for: no OpenSpace installed; OpenSpace installed and returns skills; OpenSpace installed but retrieval raises; invocation from an already-running event loop; and regression validation for removed evolution/analysis hooks."
+      ],
+      "test_templates": [
+        "Verify the identified issue with a test case",
+        "Test edge cases and boundary conditions",
+        "Ensure regression tests prevent reintroduction"
+      ],
+      "source_case": "live_review",
+      "success_score": 0.94,
+      "learned_at": "2026-05-11T23:34:00.266507",
+      "review_genome": {
+        "persona_name": "OpenSpace MCP Async Integration & Regression Reviewer",
+        "focus_areas": [
+          "reviewstem/__main__.py OpenSpace MCP integration path",
+          "asyncio event-loop usage and sync/async boundary safety",
+          "subprocess-based availability detection and fallback behavior",
+          "feature regression from replacing prior OpenSpace integration classes",
+          "safe degradation when external MCP tooling is unavailable"
+        ],
+        "specific_checks": [
+          "Verify `load_review_guidance` handles async execution correctly in both no-loop and already-running-loop contexts; specifically check whether calling `loop.run_until_complete(...)` on an already running loop is invalid and would raise at runtime.",
+          "Check whether `load_review_guidance` is invoked from async code paths in this repository, making the current event-loop branch practically unsafe.",
+          "Review whether importing `load_skills_from_openspace` inside the function is sufficient to preserve optional dependency behavior, or whether the new hard dependency `mcp>=1.0.0` in `pyproject.toml` changes fallback assumptions.",
+          "Assess whether probing availability via `subprocess.run([\"openspace-mcp\", \"--help\"], timeout=2)` is reliable, performant, and portable; check failure modes when the binary exists but hangs, writes to stderr, or is absent from PATH.",
+          "Confirm fallback to Epigenetics remains intact for all OpenSpace failure modes: missing binary, import failure, timeout, nonzero exit, MCP retrieval exception, and empty skill results.",
+          "Check whether repeated subprocess probing on every guidance load introduces unnecessary latency and whether caching availability would be safer.",
+          "Verify logging accurately distinguishes 'OpenSpace unavailable', 'OpenSpace returned no skills', and 'OpenSpace call failed' so operators can diagnose integration issues.",
+          "Compare removed imports and pipeline logic (`ReviewStemSkillEngine`, `ReviewStemExecutionAnalyzer`, `ReviewStemEvolutionEngine`) against the new MCP-only retrieval path to determine whether skill syncing, execution analysis, and evolution were silently dropped.",
+          "Do not claim a regression unless it is evidenced in the changed code or surrounding repository docs; explicitly separate confirmed removals from inferred capability changes.",
+          "Check whether README language about 'self-evolving skills' and 'quality monitoring' is still supported after deletion of execution analysis and evolution hooks from `run_review_pipeline`.",
+          "Verify there are no remaining references elsewhere in the repository expecting `evolved_skills_list`, execution analysis, or OpenSpace learning side effects.",
+          "Assess whether the new implementation preserves prior behavior when OpenSpace assets exist locally but the `openspace-mcp` binary is unavailable.",
+          "Review whether the fallback messaging and docs clearly explain that current integration is retrieval-only if that is now the case.",
+          "Require tests for: no OpenSpace installed; OpenSpace installed and returns skills; OpenSpace installed but retrieval raises; invocation from an already-running event loop; and regression validation for removed evolution/analysis hooks."
+        ],
+        "source_skills": [
+          "Grounded Express Auth & Integration Reviewer (Learned)"
+        ],
+        "risk_profile": [
+          "Runtime failure from invalid event-loop control",
+          "Unhandled async exceptions",
+          "Optional integration regressions",
+          "Fallback path silently not exercised",
+          "CLI availability detection brittleness",
+          "Behavior regression from removed OpenSpace evolution flow",
+          "Feature loss hidden by documentation expansion"
+        ]
+      },
+      "usage_count": 0,
+      "success_count": 0
+    },
+    {
+      "skill_name": "Configuration, Packaging & Operator Documentation Reviewer (Learned)",
+      "trigger": "Use when reviewing .env.example and README configuration accuracy, installation and setup consistency for optional OpenSpace integration, pyproject dependency semantics and packaging impact",
+      "risk_profile": [
+        "Configuration drift",
+        "Misleading optional-feature documentation",
+        "Dependency bloat for non-users",
+        "Broken setup instructions",
+        "Undocumented or unused environment variables",
+        "Operator confusion during deployment"
+      ],
+      "context_plan": [
+        "Focus on .env.example and README configuration accuracy",
+        "Focus on installation and setup consistency for optional OpenSpace integration",
+        "Focus on pyproject dependency semantics and packaging impact",
+        "Focus on operator-facing documentation correctness"
+      ],
+      "checklist": [
+        "Verify the docs consistently describe OpenSpace as optional while `pyproject.toml` now adds `mcp>=1.0.0` as a required dependency; flag any mismatch between optional feature messaging and mandatory install footprint.",
+        "Check whether README setup instructions are internally consistent about which API key is actually required for OpenSpace (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`) and whether model examples align with supported code paths.",
+        "Confirm every newly documented environment variable in `.env.example` is actually consumed by repository code or clearly labeled as external/OpenSpace-side configuration.",
+        "Review whether `OPENSPACE_ENABLE_RECORDING`, `OPENSPACE_WORKSPACE`, `OPENSPACE_HOST_SKILL_DIRS`, and `OPENSPACE_API_KEY` are implemented in ReviewStem, passed through indirectly, or merely documented aspirationally; require wording to match reality.",
+        "Check that the README claim 'ReviewStem automatically uses it for skill retrieval' is grounded by the actual detection logic in `load_review_guidance` and does not overstate support for learning/evolution features removed from `run_review_pipeline`.",
+        "Verify installation instructions are safe and reproducible, including whether `pip install -e .` for OpenSpace is sufficient for `openspace-mcp` CLI availability in the same environment.",
+        "Assess whether adding `mcp>=1.0.0` could create dependency conflicts or broaden install requirements for users who do not use OpenSpace; suggest extras/optional dependency packaging if appropriate.",
+        "Require a documentation-grounded test or validation step ensuring env examples and README commands match actual runtime behavior."
+      ],
+      "test_templates": [
+        "Verify the identified issue with a test case",
+        "Test edge cases and boundary conditions",
+        "Ensure regression tests prevent reintroduction"
+      ],
+      "source_case": "live_review",
+      "success_score": 0.94,
+      "learned_at": "2026-05-11T23:34:00.272346",
+      "review_genome": {
+        "persona_name": "Configuration, Packaging & Operator Documentation Reviewer",
+        "focus_areas": [
+          ".env.example and README configuration accuracy",
+          "installation and setup consistency for optional OpenSpace integration",
+          "pyproject dependency semantics and packaging impact",
+          "operator-facing documentation correctness"
+        ],
+        "specific_checks": [
+          "Verify the docs consistently describe OpenSpace as optional while `pyproject.toml` now adds `mcp>=1.0.0` as a required dependency; flag any mismatch between optional feature messaging and mandatory install footprint.",
+          "Check whether README setup instructions are internally consistent about which API key is actually required for OpenSpace (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`) and whether model examples align with supported code paths.",
+          "Confirm every newly documented environment variable in `.env.example` is actually consumed by repository code or clearly labeled as external/OpenSpace-side configuration.",
+          "Review whether `OPENSPACE_ENABLE_RECORDING`, `OPENSPACE_WORKSPACE`, `OPENSPACE_HOST_SKILL_DIRS`, and `OPENSPACE_API_KEY` are implemented in ReviewStem, passed through indirectly, or merely documented aspirationally; require wording to match reality.",
+          "Check that the README claim 'ReviewStem automatically uses it for skill retrieval' is grounded by the actual detection logic in `load_review_guidance` and does not overstate support for learning/evolution features removed from `run_review_pipeline`.",
+          "Verify installation instructions are safe and reproducible, including whether `pip install -e .` for OpenSpace is sufficient for `openspace-mcp` CLI availability in the same environment.",
+          "Assess whether adding `mcp>=1.0.0` could create dependency conflicts or broaden install requirements for users who do not use OpenSpace; suggest extras/optional dependency packaging if appropriate.",
+          "Require a documentation-grounded test or validation step ensuring env examples and README commands match actual runtime behavior."
+        ],
+        "source_skills": [],
+        "risk_profile": [
+          "Configuration drift",
+          "Misleading optional-feature documentation",
+          "Dependency bloat for non-users",
+          "Broken setup instructions",
+          "Undocumented or unused environment variables",
+          "Operator confusion during deployment"
+        ]
+      },
+      "usage_count": 0,
+      "success_count": 0
     }
   ],
-  "last_updated": "2026-05-11T20:20:16.259260"
+  "last_updated": "2026-05-11T23:34:00.272405"
 }
