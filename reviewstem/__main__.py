@@ -650,6 +650,104 @@ def _print_multiseed_table(results) -> None:
     console.print(table)
 
 
+@app.command("dep-upgrade-review")
+def dep_upgrade_review_command(
+    manifest_diff: Optional[str] = typer.Argument(
+        None,
+        help="Path to a file containing the manifest diff; if omitted, reads stdin.",
+    ),
+    model: Optional[str] = typer.Option(None, "--model"),
+    max_iterations: Optional[int] = typer.Option(None, "--max-iterations"),
+    target_score: Optional[float] = typer.Option(None, "--target-score"),
+    quiet: bool = typer.Option(False, "--quiet"),
+):
+    """Run a dependency-upgrade safety review on a manifest diff."""
+    import sys
+    from .domains.dep_upgrade.runner import run_dep_upgrade_review
+
+    config = apply_cli_overrides(model, max_iterations, target_score, quiet)
+    if manifest_diff:
+        diff_text = Path(manifest_diff).read_text(encoding="utf-8")
+    else:
+        diff_text = sys.stdin.read()
+    review, evaluation = asyncio.run(run_dep_upgrade_review(diff_text, config))
+    display_review(review)
+    console.print(f"[bold cyan]Fitness:[/bold cyan] {evaluation.score:.2f}")
+
+
+@app.command("dep-upgrade-benchmark")
+def dep_upgrade_benchmark_command(
+    cases: Optional[str] = typer.Option(None, "--case", help="Comma-separated case IDs."),
+    model: Optional[str] = typer.Option(None, "--model"),
+    max_iterations: Optional[int] = typer.Option(None, "--max-iterations"),
+    target_score: Optional[float] = typer.Option(None, "--target-score"),
+    seeds: int = typer.Option(1, "--seeds"),
+    quiet: bool = typer.Option(False, "--quiet"),
+):
+    """Run the dep-upgrade benchmark suite (single- or multi-seed)."""
+    from .domains.dep_upgrade.benchmark import (
+        DEP_UPGRADE_CASES,
+        score_dep_review,
+        select_dep_upgrade_cases,
+    )
+    from .domains.dep_upgrade.runner import (
+        run_dep_upgrade_baseline,
+        run_dep_upgrade_review,
+    )
+    from .multi_seed import (
+        DEFAULT_SEED_SCHEDULE,
+        CellScores,
+        MultiSeedResult,
+        write_multi_seed_outputs,
+    )
+
+    config = apply_cli_overrides(model, max_iterations, target_score, quiet)
+    selected = select_dep_upgrade_cases(cases)
+    cache_dir = Path(".reviewstem/llm_cache")
+    schedule = DEFAULT_SEED_SCHEDULE[:seeds] if seeds > 1 else [(1, 0.0)]
+
+    async def _run():
+        results: list[MultiSeedResult] = []
+        for case in selected:
+            console.print(f"[bold yellow]dep_upgrade case:[/bold yellow] {case.case_id} (N={len(schedule)})")
+            generic = CellScores(case_id=case.case_id, condition="generic")
+            rstem = CellScores(case_id=case.case_id, condition="reviewstem")
+            skilled = CellScores(case_id=case.case_id, condition="skilled")  # no separate skilled baseline; mirror generic
+            for seed, temp in schedule:
+                kwargs = {"seed": seed, "temperature": temp, "cache_dir": cache_dir}
+                bl_review, bl_calls = await run_dep_upgrade_baseline(case.diff, config, llm_kwargs=kwargs)
+                bs = score_dep_review(case, bl_review)
+                generic.raw_scores.append(bs.score)
+                generic.raw_calls.append(bl_calls)
+                generic.raw_detected.append(bs.notes == "matched")
+                skilled.raw_scores.append(bs.score)
+                skilled.raw_calls.append(bl_calls)
+                skilled.raw_detected.append(bs.notes == "matched")
+
+                rs_review, _ = await run_dep_upgrade_review(case.diff, config, case_id=case.case_id, llm_kwargs=kwargs)
+                rs_score = score_dep_review(case, rs_review)
+                rstem.raw_scores.append(rs_score.score)
+                rstem.raw_calls.append(0)  # not threading call count through this path
+                rstem.raw_detected.append(rs_score.notes == "matched")
+
+            results.append(
+                MultiSeedResult(
+                    case_id=case.case_id,
+                    title=case.title,
+                    requires_context=False,
+                    generic=generic,
+                    skilled=skilled,
+                    reviewstem=rstem,
+                )
+            )
+        out_dir = Path("outputs") / "dep_upgrade"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        json_path, md_path = write_multi_seed_outputs(results, out_dir)
+        console.print(f"[green]Wrote dep-upgrade reports:[/green] {json_path}, {md_path}")
+
+    asyncio.run(_run())
+
+
 @app.command("doctor")
 def doctor():
     """Check local setup without making API calls."""

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "GHSA-jf85-cpcp-j695",
+    "aliases": ["CVE-2019-10744"],
+    "summary": "Prototype Pollution in lodash via defaultsDeep",
+    "severity": [{"type": "CVSS_V3", "score": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}],
+    "affected": [
+      {"ranges": [{"events": [{"introduced": "0"}, {"fixed": "4.17.12"}]}]}
+    ]
+  },
+  {
+    "id": "GHSA-p6mc-m468-83gw",
+    "aliases": ["CVE-2020-8203"],
+    "summary": "Prototype Pollution in lodash via _.set",
+    "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:U/C:H/I:H/A:H"}],
+    "affected": [
+      {"ranges": [{"events": [{"introduced": "0"}, {"fixed": "4.17.20"}]}]}
+    ]
+  }
+]

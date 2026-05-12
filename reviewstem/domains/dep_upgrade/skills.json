@@ -1,0 +1,145 @@
+[
+  {
+    "skill_name": "Known CVE Detection on Upgrade",
+    "trigger": "Use when a manifest diff changes a dependency version and the new or old version may carry a published CVE.",
+    "risk_profile": [
+      "Direct dependency version change",
+      "Major version bump",
+      "Lockfile mutation"
+    ],
+    "context_plan": [
+      "Inspect package.json / requirements.txt / pyproject.toml for the old and new pinned versions",
+      "Look up both versions in OSV/GHSA",
+      "Flag CVEs introduced by the upgrade AND CVEs fixed by it"
+    ],
+    "checklist": [
+      "Name the specific CVE / GHSA / OSV id when one applies",
+      "State whether each CVE is introduced or fixed by the change",
+      "Give the fixed-in version if available",
+      "Mark CVSS severity (Critical/High/Medium/Low)"
+    ],
+    "test_templates": [
+      "Pin the dependency to the fixed-in version in the lockfile and assert it via a CI lint",
+      "Add a smoke test that fails if the vulnerable code path is exercised"
+    ],
+    "source_case": "dep_upgrade"
+  },
+  {
+    "skill_name": "Major Version Breaking Change Review",
+    "trigger": "Use when a manifest diff bumps a dependency's major version, indicating an API or behavior break per semver.",
+    "risk_profile": [
+      "Major version bump (X -> X+1)",
+      "0.X bump (any 0.X -> 0.Y change is potentially breaking)",
+      "Renamed or removed public symbols"
+    ],
+    "context_plan": [
+      "Compare old and new major versions against semver semantics",
+      "Identify which call sites in the repo use the upgraded package",
+      "Cross-reference the CHANGELOG, MIGRATION, or BREAKING.md if available"
+    ],
+    "checklist": [
+      "List concrete API changes that this code base touches",
+      "Flag deprecations that become removals",
+      "Note default-behavior changes (timeouts, encoding, retries) that may silently change runtime behavior"
+    ],
+    "test_templates": [
+      "Run the existing test suite against the new version in a feature branch",
+      "Add a contract test for the deprecated symbol path"
+    ],
+    "source_case": "dep_upgrade"
+  },
+  {
+    "skill_name": "Transitive Dependency Bloat Audit",
+    "trigger": "Use when a manifest diff adds, removes, or upgrades a dependency that may pull in or drop transitive packages.",
+    "risk_profile": [
+      "Transitive count increase",
+      "New transitive in the supply-chain attack surface",
+      "Duplicate top-level peers"
+    ],
+    "context_plan": [
+      "Resolve the dependency tree before and after the change",
+      "Identify newly added transitive packages",
+      "Look up new transitives in OSV for known compromises (e.g. event-stream 3.3.6)"
+    ],
+    "checklist": [
+      "List newly introduced transitive packages by name",
+      "Flag any transitive with maintainer/scope changes",
+      "Recommend resolutions or overrides when a known-bad transitive is being pulled in"
+    ],
+    "test_templates": [
+      "Run npm audit / pip-audit and gate CI on the result",
+      "Snapshot the lockfile and diff transitives on every PR"
+    ],
+    "source_case": "dep_upgrade"
+  },
+  {
+    "skill_name": "License Shift Detection",
+    "trigger": "Use when a manifest diff changes a dependency in a way that may change the cumulative license obligations of the project.",
+    "risk_profile": [
+      "Permissive -> copyleft (MIT -> GPL/AGPL)",
+      "License removal or relicense",
+      "Dual-license selection ambiguity"
+    ],
+    "context_plan": [
+      "Look up the SPDX license of each changed dependency before and after",
+      "Identify any AGPL/GPL/SSPL introduction",
+      "Note unknown or unlicensed packages"
+    ],
+    "checklist": [
+      "Name the SPDX id of the new and old licenses",
+      "Flag any copyleft introduction explicitly",
+      "Recommend legal review when a non-permissive license appears for the first time"
+    ],
+    "test_templates": [
+      "Add a CI check using `pip-licenses` or `license-checker` that fails on unknown / forbidden SPDX ids"
+    ],
+    "source_case": "dep_upgrade"
+  },
+  {
+    "skill_name": "Version Pinning Quality Review",
+    "trigger": "Use when a manifest diff uses or changes a version specifier (^, ~, *, range, exact, or git tag).",
+    "risk_profile": [
+      "Floating range (^X.Y.Z, ~X.Y) in a production manifest",
+      "Wildcard or empty pin (`*`, `latest`, `master`)",
+      "Lockfile missing or stale relative to manifest"
+    ],
+    "context_plan": [
+      "Read the manifest and any sibling lockfile",
+      "Categorize each pin as exact, caret, tilde, wildcard, or git ref",
+      "Flag wildcards and unpinned specifiers in production"
+    ],
+    "checklist": [
+      "Recommend exact pinning + lockfile for reproducible builds",
+      "Flag missing or stale lockfile",
+      "Avoid `latest` and `master` references for production"
+    ],
+    "test_templates": [
+      "CI step that fails when manifest is out of sync with lockfile",
+      "Reproducible-build test: install from lockfile and diff resolved versions"
+    ],
+    "source_case": "dep_upgrade"
+  },
+  {
+    "skill_name": "Deprecated or Abandoned Package Detection",
+    "trigger": "Use when a manifest diff adds or retains a dependency that may be deprecated, abandoned, or marked as such on its registry.",
+    "risk_profile": [
+      "Package marked deprecated on npm/PyPI",
+      "Last commit/release older than 24 months",
+      "Maintainer handoff or org migration"
+    ],
+    "context_plan": [
+      "Check registry deprecation flags (npm `deprecated` field, PyPI `Development Status`)",
+      "Note replacement packages where the registry suggests them",
+      "Flag abandoned packages without a clear successor"
+    ],
+    "checklist": [
+      "Name the package, the deprecation status, and the suggested replacement",
+      "Flag continued use of unmaintained dependencies in a security-sensitive surface",
+      "Propose a migration path with effort estimate"
+    ],
+    "test_templates": [
+      "CI check that fails when a deprecated package appears in the lockfile"
+    ],
+    "source_case": "dep_upgrade"
+  }
+]
