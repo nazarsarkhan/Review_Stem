@@ -370,6 +370,328 @@ index 0000000..1234567
 +});
 """,
     ),
+    "csrf_missing_token": BenchmarkCase(
+        case_id="csrf_missing_token",
+        title="State-changing POST endpoint has no CSRF token check",
+        expected_filepath="src/routes/transfer.ts",
+        expected_line=6,
+        expected_severity="High",
+        required_keywords=("csrf", "token", "cross-site"),
+        related_files=("src/routes/transfer.ts",),
+        concept_groups=(
+            ("csrf", "cross-site request forgery", "xsrf"),
+            ("token", "csrf token", "double submit", "synchronizer"),
+            ("state-changing", "post", "mutation", "side effect"),
+            ("origin", "samesite", "referer", "cookie"),
+        ),
+        diff="""diff --git a/src/routes/transfer.ts b/src/routes/transfer.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/routes/transfer.ts
+@@ -0,0 +1,12 @@
++import express from 'express';
++import { db } from '../db';
++
++const router = express.Router();
++
++router.post('/transfer', async (req, res) => {
++  const { fromAccount, toAccount, amount } = req.body;
++  await db.accounts.transfer(fromAccount, toAccount, amount);
++  res.json({ ok: true });
++});
++
++export default router;
+""",
+    ),
+    "idor_user_id_in_url": BenchmarkCase(
+        case_id="idor_user_id_in_url",
+        title="GET /orders/:id returns any user's order without ownership check",
+        expected_filepath="src/routes/orders.ts",
+        expected_line=7,
+        expected_severity="High",
+        required_keywords=("idor", "authorization", "ownership"),
+        related_files=("src/routes/orders.ts",),
+        concept_groups=(
+            ("idor", "insecure direct object reference", "object-level authorization"),
+            ("ownership", "owner check", "authorization", "ACL"),
+            ("user id", "url parameter", "path param", ":id"),
+            ("any user", "other user", "access control", "horizontal privilege"),
+        ),
+        diff="""diff --git a/src/routes/orders.ts b/src/routes/orders.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/routes/orders.ts
+@@ -0,0 +1,11 @@
++import express from 'express';
++import { db } from '../db';
++
++const router = express.Router();
++
++router.get('/orders/:id', async (req, res) => {
++  const order = await db.orders.findById(req.params.id);
++  res.json(order);
++});
++
++export default router;
+""",
+    ),
+    "jwt_no_verify": BenchmarkCase(
+        case_id="jwt_no_verify",
+        title="JWT decoded but never verified; signature trust bypassed",
+        expected_filepath="src/middleware/jwt.ts",
+        expected_line=7,
+        expected_severity="Critical",
+        required_keywords=("jwt", "verify", "signature", "decode"),
+        related_files=("src/middleware/jwt.ts",),
+        concept_groups=(
+            ("jwt", "json web token", "bearer token"),
+            ("verify", "verification", "signature", "tamper"),
+            ("decode", "jwt.decode", "unsigned", "trust"),
+            ("none", "alg none", "algorithm", "secret"),
+        ),
+        diff="""diff --git a/src/middleware/jwt.ts b/src/middleware/jwt.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/middleware/jwt.ts
+@@ -0,0 +1,12 @@
++import jwt from 'jsonwebtoken';
++import { Request, Response, NextFunction } from 'express';
++
++export function authenticate(req: Request, res: Response, next: NextFunction) {
++  const header = req.headers.authorization || '';
++  const token = header.replace(/^Bearer\\s+/, '');
++  const claims = jwt.decode(token) as { sub: string } | null;
++  if (!claims) return res.status(401).end();
++  (req as any).userId = claims.sub;
++  next();
++}
+""",
+    ),
+    "secret_in_log_line": BenchmarkCase(
+        case_id="secret_in_log_line",
+        title="Password value written to application log on failed login",
+        expected_filepath="src/services/audit.ts",
+        expected_line=6,
+        expected_severity="High",
+        required_keywords=("log", "secret", "password", "disclosure"),
+        related_files=("src/services/audit.ts",),
+        concept_groups=(
+            ("log", "logger", "console.log", "winston", "audit"),
+            ("password", "secret", "credential", "token"),
+            ("information disclosure", "leak", "exposure", "PII"),
+            ("redact", "scrub", "masking", "sanitize"),
+        ),
+        diff="""diff --git a/src/services/audit.ts b/src/services/audit.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/services/audit.ts
+@@ -0,0 +1,9 @@
++import { logger } from './logger';
++
++export function recordFailedLogin(email: string, password: string, reason: string) {
++  logger.warn(
++    `failed login email=${email} password=${password} reason=${reason}`
++  );
++}
++
++export default recordFailedLogin;
+""",
+    ),
+    "regex_redos": BenchmarkCase(
+        case_id="regex_redos",
+        title="Catastrophic backtracking regex on user-supplied input (ReDoS)",
+        expected_filepath="src/utils/validate.ts",
+        expected_line=5,
+        expected_severity="High",
+        required_keywords=("redos", "regex", "backtracking", "denial"),
+        related_files=("src/utils/validate.ts",),
+        concept_groups=(
+            ("redos", "regex denial of service", "catastrophic backtracking"),
+            ("regex", "regular expression", "pattern"),
+            ("user input", "untrusted", "validation"),
+            ("denial of service", "dos", "cpu", "hang", "timeout"),
+        ),
+        diff="""diff --git a/src/utils/validate.ts b/src/utils/validate.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/utils/validate.ts
+@@ -0,0 +1,8 @@
++const EMAIL_RE = /^([a-zA-Z0-9_\\.\\-]+)+@([a-zA-Z0-9_\\.\\-]+)+\\.([a-zA-Z]{2,5})+$/;
++
++export function isValidEmail(input: string): boolean {
++  return EMAIL_RE.test(input);
++}
++
++export default isValidEmail;
+""",
+    ),
+    "unsafe_deserialization": BenchmarkCase(
+        case_id="unsafe_deserialization",
+        title="node-serialize.unserialize called on untrusted body field",
+        expected_filepath="src/utils/cache_serializer.ts",
+        expected_line=6,
+        expected_severity="Critical",
+        required_keywords=("deserialization", "unserialize", "rce", "untrusted"),
+        related_files=("src/utils/cache_serializer.ts",),
+        concept_groups=(
+            ("deserialization", "unsafe deserialization", "gadget chain"),
+            ("unserialize", "node-serialize", "eval", "function constructor"),
+            ("rce", "remote code execution", "code execution", "arbitrary code"),
+            ("untrusted", "user input", "request body", "external"),
+        ),
+        diff="""diff --git a/src/utils/cache_serializer.ts b/src/utils/cache_serializer.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/utils/cache_serializer.ts
+@@ -0,0 +1,10 @@
++import serialize from 'node-serialize';
++
++export function restore(req: { body: { state: string } }) {
++  const raw = req.body.state;
++  // Restore the cached compute state from the client.
++  const restored = serialize.unserialize(raw);
++  return restored;
++}
++
++export default restore;
+""",
+    ),
+    "open_redirect_param": BenchmarkCase(
+        case_id="open_redirect_param",
+        title="res.redirect uses unvalidated next query param (open redirect)",
+        expected_filepath="src/routes/redirect.ts",
+        expected_line=7,
+        expected_severity="High",
+        required_keywords=("redirect", "open", "validation", "allow-list"),
+        related_files=("src/routes/redirect.ts",),
+        concept_groups=(
+            ("open redirect", "unvalidated redirect", "forward"),
+            ("allow-list", "whitelist", "validate", "host check"),
+            ("phishing", "trust", "external domain"),
+            ("redirect", "res.redirect", "location header"),
+        ),
+        diff="""diff --git a/src/routes/redirect.ts b/src/routes/redirect.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/routes/redirect.ts
+@@ -0,0 +1,11 @@
++import express from 'express';
++
++const router = express.Router();
++
++router.get('/go', (req, res) => {
++  const next = String(req.query.next || '/');
++  res.redirect(next);
++});
++
++export default router;
+""",
+    ),
+    "ssti_template_injection": BenchmarkCase(
+        case_id="ssti_template_injection",
+        title="User-supplied Pug template compiled and rendered (SSTI)",
+        expected_filepath="src/views/render.ts",
+        expected_line=7,
+        expected_severity="Critical",
+        required_keywords=("template", "injection", "ssti", "compile"),
+        related_files=("src/views/render.ts",),
+        concept_groups=(
+            ("ssti", "server-side template injection", "template injection"),
+            ("template", "pug", "ejs", "handlebars", "jinja"),
+            ("compile", "render", "evaluate", "user-supplied template"),
+            ("rce", "remote code execution", "sandbox", "untrusted"),
+        ),
+        diff="""diff --git a/src/views/render.ts b/src/views/render.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/views/render.ts
+@@ -0,0 +1,11 @@
++import express from 'express';
++import pug from 'pug';
++
++const router = express.Router();
++
++router.post('/render', (req, res) => {
++  const template = String(req.body.template || '');
++  res.send(pug.compile(template)({}));
++});
++
++export default router;
+""",
+    ),
+    "missing_rate_limit_login": BenchmarkCase(
+        case_id="missing_rate_limit_login",
+        title="Login endpoint lacks rate limiting; credential stuffing exposure",
+        expected_filepath="src/routes/login.ts",
+        expected_line=7,
+        expected_severity="High",
+        required_keywords=("rate limit", "throttle", "brute force", "login"),
+        related_files=("src/routes/login.ts",),
+        concept_groups=(
+            ("rate limit", "rate-limiting", "throttle", "express-rate-limit"),
+            ("brute force", "credential stuffing", "password spraying"),
+            ("login", "authentication", "auth endpoint"),
+            ("captcha", "lockout", "cooldown", "exponential backoff"),
+        ),
+        diff="""diff --git a/src/routes/login.ts b/src/routes/login.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/routes/login.ts
+@@ -0,0 +1,12 @@
++import express from 'express';
++import { db } from '../db';
++import { verifyPassword } from '../services/passwords';
++
++const router = express.Router();
++
++router.post('/login', async (req, res) => {
++  const user = await db.users.findByEmail(req.body.email);
++  if (!user || !(await verifyPassword(req.body.password, user.passwordHash))) {
++    return res.status(401).end();
++  }
++  res.json({ token: 'issued' });
++});
+""",
+    ),
+    "prototype_pollution_lodash": BenchmarkCase(
+        case_id="prototype_pollution_lodash",
+        title="Deep-merge of user JSON via _.merge without prototype guard",
+        expected_filepath="src/utils/merge.ts",
+        expected_line=5,
+        expected_severity="High",
+        required_keywords=("prototype", "pollution", "merge", "lodash"),
+        related_files=("src/utils/merge.ts",),
+        concept_groups=(
+            ("prototype pollution", "__proto__", "constructor.prototype"),
+            ("merge", "deep merge", "lodash", "_.merge", "_.set"),
+            ("user input", "untrusted json", "request body"),
+            ("safe merge", "object.create", "prototype guard", "object.freeze"),
+        ),
+        diff="""diff --git a/src/utils/merge.ts b/src/utils/merge.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/src/utils/merge.ts
+@@ -0,0 +1,9 @@
++import _ from 'lodash';
++
++export function applyUserSettings(defaults: any, body: any) {
++  const merged = _.merge({}, defaults, body);
++  return merged;
++}
++
++export default applyUserSettings;
+""",
+    ),
 }
 
 
