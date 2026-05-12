@@ -6,6 +6,7 @@ OpenSpace runs as an MCP server and provides skill search capabilities.
 
 import json
 import os
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -56,32 +57,37 @@ class OpenSpaceMCPClient:
         )
 
     async def __aenter__(self):
-        """Start MCP server and establish connection."""
+        """Start MCP server and establish connection.
+
+        Uses AsyncExitStack so that the stdio_client and ClientSession context
+        managers (both of which wrap anyio task groups) are entered and exited
+        from the same task — required by anyio's structured concurrency, and
+        the pattern the MCP SDK README documents.
+        """
+        self._stack = AsyncExitStack()
         try:
-            # stdio_client returns an async context manager
-            self.stdio_context = stdio_client(self.server_params)
-            self.read, self.write = await self.stdio_context.__aenter__()
-            self.session = ClientSession(self.read, self.write)
-            await self.session.__aenter__()
-
-            # Initialize the connection - REQUIRED for MCP protocol
+            await self._stack.__aenter__()
+            self.read, self.write = await self._stack.enter_async_context(
+                stdio_client(self.server_params)
+            )
+            self.session = await self._stack.enter_async_context(
+                ClientSession(self.read, self.write)
+            )
             await self.session.initialize()
-
             logger.info("OpenSpace MCP server connected and initialized")
             return self
-        except Exception as e:
+        except BaseException as e:
             logger.error(f"Failed to connect to OpenSpace MCP server: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+            await self._stack.aclose()
             raise
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Close MCP connection."""
-        if self.session:
-            await self.session.__aexit__(exc_type, exc_val, exc_tb)
-        if hasattr(self, 'stdio_context'):
-            await self.stdio_context.__aexit__(exc_type, exc_val, exc_tb)
-        logger.info("OpenSpace MCP server disconnected")
+        """Close MCP connection — unwinds the exit stack in LIFO order."""
+        try:
+            return await self._stack.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.session = None
+            logger.info("OpenSpace MCP server disconnected")
 
     async def search_skills(
         self,
@@ -171,18 +177,21 @@ async def load_skills_from_openspace(
     Returns:
         List of SelectedSkill objects
     """
-    try:
-        # Get configuration from environment
-        workspace = os.getenv("OPENSPACE_WORKSPACE", str(Path.cwd()))
-        skill_dirs = os.getenv("OPENSPACE_HOST_SKILL_DIRS", str(Path.cwd() / "skills"))
-        api_key = os.getenv("OPENSPACE_API_KEY")
+    workspace = os.getenv("OPENSPACE_WORKSPACE", str(Path.cwd()))
+    skill_dirs = os.getenv("OPENSPACE_HOST_SKILL_DIRS", str(Path.cwd() / "skills"))
+    api_key = os.getenv("OPENSPACE_API_KEY")
 
+    # Capture results outside the `with` block so a teardown error doesn't
+    # discard skills that were successfully retrieved. The MCP stdio_client's
+    # cleanup occasionally raises a TaskGroup error even after a clean call;
+    # we want to keep the search results in that case.
+    converted: List[SelectedSkill] = []
+    try:
         async with OpenSpaceMCPClient(
             workspace_dir=workspace,
             host_skill_dirs=skill_dirs,
-            api_key=api_key
+            api_key=api_key,
         ) as openspace:
-            # Build search query
             query = f"""
             Code review task for the following changes:
 
@@ -195,21 +204,24 @@ async def load_skills_from_openspace(
             Find skills relevant for security review, code quality analysis, and test generation.
             """
 
-            # Search for skills
             skills = await openspace.search_skills(
                 query=query.strip(),
                 source="local",  # Only search local to avoid cloud timeout
                 limit=limit,
-                auto_import=False  # Don't auto-import to avoid delays
+                auto_import=False,  # Don't auto-import to avoid delays
             )
 
             if skills:
                 logger.info(f"OpenSpace: Retrieved {len(skills)} skills")
-                return convert_openspace_skills_to_selected(skills)
+                converted = convert_openspace_skills_to_selected(skills)
             else:
                 logger.warning("OpenSpace: No skills found")
-                return []
-
     except Exception as e:
-        logger.error(f"OpenSpace MCP integration failed: {e}")
-        return []
+        if converted:
+            logger.warning(
+                f"OpenSpace teardown raised after successful retrieval; "
+                f"keeping {len(converted)} skills. Error: {e}"
+            )
+        else:
+            logger.error(f"OpenSpace MCP integration failed: {e}")
+    return converted

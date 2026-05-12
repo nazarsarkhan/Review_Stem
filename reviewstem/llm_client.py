@@ -14,16 +14,34 @@ from .logger import logger
 T = TypeVar("T", bound=BaseModel)
 
 
-def _cache_key(model: str, messages: list[dict], schema_name: str, temperature: float, seed: int | None) -> str:
+def _normalize_message(m: Any) -> Any:
+    """Coerce a message into a JSON-serializable dict for cache hashing.
+
+    OpenAI's tool-call loop echoes the assistant turn back as a
+    ``ChatCompletionMessage`` pydantic object (see motor_cortex draft review);
+    a raw ``json.dumps`` over the messages list would crash on it.
+    """
+    if isinstance(m, dict):
+        return m
+    if hasattr(m, "model_dump"):
+        return m.model_dump(mode="json", exclude_none=True)
+    if hasattr(m, "to_dict"):
+        return m.to_dict()
+    return str(m)
+
+
+def _cache_key(model: str, messages: list, schema_name: str, temperature: float, seed: int | None) -> str:
+    normalized = [_normalize_message(m) for m in messages]
     payload = json.dumps(
         {
             "model": model,
-            "messages": messages,
+            "messages": normalized,
             "schema": schema_name,
             "temperature": temperature,
             "seed": seed,
         },
         sort_keys=True,
+        default=str,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
