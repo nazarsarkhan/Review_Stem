@@ -137,9 +137,10 @@ async def run_review_pipeline(
     mode: str = "review",
     fallback_diff: bool = False,
     persist_outputs: bool = True,
+    llm_kwargs: Optional[dict] = None,
 ) -> tuple[ReviewOutput, EvaluationScore, list[float], SpecializationState]:
     """Run the full ReviewStem specialization and review pipeline."""
-    llm = LLMClient(config)
+    llm = LLMClient(config, **(llm_kwargs or {}))
     stem = StemCell(llm)
     motor = MotorCortex(llm, repo_path=str(repo_path), config=config)
     immune = ImmuneSystem(llm)
@@ -314,9 +315,14 @@ async def run_review_pipeline(
     return final_review, evaluation, scores, state
 
 
-async def run_baseline_review(diff: str, repo_path: Path, config: ReviewStemConfig) -> tuple[ReviewOutput, int]:
+async def run_baseline_review(
+    diff: str,
+    repo_path: Path,
+    config: ReviewStemConfig,
+    llm_kwargs: Optional[dict] = None,
+) -> tuple[ReviewOutput, int]:
     """Run a generic single-prompt baseline review."""
-    llm = LLMClient(config)
+    llm = LLMClient(config, **(llm_kwargs or {}))
     repo_map = Hippocampus.generate_repo_map(str(repo_path), max_files=config.repo_map_max_files)
     prompt = f"""
 You are a general-purpose code reviewer. Review the diff and return only concrete findings.
@@ -338,9 +344,10 @@ async def run_skilled_baseline_review(
     repo_path: Path,
     config: ReviewStemConfig,
     case_id: str | None = None,
+    llm_kwargs: Optional[dict] = None,
 ) -> tuple[ReviewOutput, int]:
     """Run a single generic reviewer with selected skill text but no specialization loop."""
-    llm = LLMClient(config)
+    llm = LLMClient(config, **(llm_kwargs or {}))
     repo_map = Hippocampus.generate_repo_map(str(repo_path), max_files=config.repo_map_max_files)
     skills = await load_review_guidance_async(diff, Path.cwd(), repo_signals=repo_map, case_id=case_id)
     skill_text = "\n".join(skill.model_dump_json() for skill in skills)
@@ -462,11 +469,28 @@ def benchmark(
     model: Optional[str] = typer.Option(None, "--model", help="Override REVIEWSTEM_MODEL."),
     max_iterations: Optional[int] = typer.Option(None, "--max-iterations", help="Override REVIEWSTEM_MAX_ITERATIONS."),
     target_score: Optional[float] = typer.Option(None, "--target-score", help="Override REVIEWSTEM_TARGET_SCORE."),
+    seeds: int = typer.Option(
+        1,
+        "--seeds",
+        help="Number of seeds per cell. >1 enables multi-seed mode with bootstrap CIs.",
+    ),
+    seed_schedule: Optional[str] = typer.Option(
+        None,
+        "--seed-schedule",
+        help='Override seed/temp pairs, e.g. "1:0.0,2:0.2,3:0.5". Length must match --seeds.',
+    ),
     quiet: bool = typer.Option(False, "--quiet", help="Reduce progress output."),
 ):
     """Run baseline vs ReviewStem benchmark cases."""
     config = apply_cli_overrides(model, max_iterations, target_score, quiet)
-    asyncio.run(benchmark_command(cases, config))
+    if seeds > 1:
+        from .multi_seed import DEFAULT_SEED_SCHEDULE, parse_seed_schedule
+        schedule = parse_seed_schedule(seed_schedule) if seed_schedule else DEFAULT_SEED_SCHEDULE
+        if len(schedule) < seeds:
+            raise typer.BadParameter(f"--seeds={seeds} but only {len(schedule)} entries in schedule")
+        asyncio.run(benchmark_multiseed_command(cases, config, schedule[:seeds]))
+    else:
+        asyncio.run(benchmark_command(cases, config))
 
 
 async def benchmark_command(case_ids: str | None, config: ReviewStemConfig):
@@ -521,6 +545,99 @@ async def benchmark_command(case_ids: str | None, config: ReviewStemConfig):
     json_path, markdown_path = write_benchmark_outputs(results, Path("outputs"))
     _print_benchmark_table(results)
     console.print(f"\n[green]Wrote benchmark reports:[/green] {json_path}, {markdown_path}")
+
+
+async def benchmark_multiseed_command(
+    case_ids: str | None,
+    config: ReviewStemConfig,
+    schedule: list[tuple[int, float]],
+) -> None:
+    """Run each (case, condition) cell across multiple seeds and report CIs."""
+    from .multi_seed import CellScores, MultiSeedResult, write_multi_seed_outputs
+
+    repo_path = benchmark_repo_path(Path.cwd())
+    selected_cases = select_benchmark_cases(case_ids)
+    cache_dir = Path(".reviewstem/llm_cache")
+
+    results: list[MultiSeedResult] = []
+    for case in selected_cases:
+        if not config.quiet:
+            console.print(f"[bold yellow]Multi-seed case:[/bold yellow] {case.case_id} (N={len(schedule)})")
+
+        generic = CellScores(case_id=case.case_id, condition="generic")
+        skilled = CellScores(case_id=case.case_id, condition="skilled")
+        rstem = CellScores(case_id=case.case_id, condition="reviewstem")
+
+        for seed, temp in schedule:
+            kwargs = {"seed": seed, "temperature": temp, "cache_dir": cache_dir}
+            if not config.quiet:
+                console.print(f"  seed={seed} temp={temp}")
+
+            baseline_review, baseline_calls = await run_baseline_review(
+                case.diff, repo_path, config, llm_kwargs=kwargs
+            )
+            bs = score_review(case, baseline_review, repo_path)
+            generic.raw_scores.append(bs.score)
+            generic.raw_calls.append(baseline_calls)
+            generic.raw_detected.append(bs.issue_detected)
+
+            skilled_review, skilled_calls = await run_skilled_baseline_review(
+                case.diff, repo_path, config, case.case_id, llm_kwargs=kwargs
+            )
+            ss = score_review(case, skilled_review, repo_path)
+            skilled.raw_scores.append(ss.score)
+            skilled.raw_calls.append(skilled_calls)
+            skilled.raw_detected.append(ss.issue_detected)
+
+            rs_review, _, _, state = await run_review_pipeline(
+                case.diff,
+                repo_path,
+                config,
+                case.case_id,
+                mode="benchmark",
+                persist_outputs=False,
+                llm_kwargs=kwargs,
+            )
+            rss = score_review(case, rs_review, repo_path)
+            rstem.raw_scores.append(rss.score)
+            rstem.raw_calls.append(state.outputs.get("llm_call_count", 0))
+            rstem.raw_detected.append(rss.issue_detected)
+
+        results.append(
+            MultiSeedResult(
+                case_id=case.case_id,
+                title=case.title,
+                requires_context=case.requires_context,
+                generic=generic,
+                skilled=skilled,
+                reviewstem=rstem,
+            )
+        )
+
+    json_path, md_path = write_multi_seed_outputs(results, Path("outputs"))
+    console.print(f"\n[green]Wrote multi-seed reports:[/green] {json_path}, {md_path}")
+    _print_multiseed_table(results)
+
+
+def _print_multiseed_table(results) -> None:
+    """Render a Rich table summarizing multi-seed results."""
+    from .multi_seed import bootstrap_ci, is_significant
+
+    table = Table(title="Multi-seed benchmark (mean +/- stdev, 95% CI)")
+    table.add_column("Case")
+    table.add_column("Generic", justify="right")
+    table.add_column("Skilled", justify="right")
+    table.add_column("ReviewStem", justify="right")
+    table.add_column("delta", justify="right")
+    table.add_column("sig?", justify="center")
+    for r in results:
+        def cell(c) -> str:
+            lo, hi = bootstrap_ci(c.raw_scores)
+            return f"{c.mean:.2f}+/-{c.stdev:.2f} [{lo:.2f},{hi:.2f}]"
+        delta = r.reviewstem.mean - r.generic.mean
+        sig = "yes" if is_significant(r.reviewstem, r.generic) else "no"
+        table.add_row(r.case_id, cell(r.generic), cell(r.skilled), cell(r.reviewstem), f"{delta:+.2f}", sig)
+    console.print(table)
 
 
 @app.command("doctor")

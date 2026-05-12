@@ -1,5 +1,8 @@
 import asyncio
+import hashlib
+import json
 import os
+from pathlib import Path
 from typing import Any, List, Optional, Type, TypeVar
 
 import openai
@@ -11,8 +14,28 @@ from .logger import logger
 T = TypeVar("T", bound=BaseModel)
 
 
+def _cache_key(model: str, messages: list[dict], schema_name: str, temperature: float, seed: int | None) -> str:
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": messages,
+            "schema": schema_name,
+            "temperature": temperature,
+            "seed": seed,
+        },
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 class LLMClient:
-    def __init__(self, config: ReviewStemConfig | None = None):
+    def __init__(
+        self,
+        config: ReviewStemConfig | None = None,
+        seed: int | None = None,
+        temperature: float | None = None,
+        cache_dir: Path | str | None = None,
+    ):
         self.config = config or ReviewStemConfig.from_env()
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
@@ -20,9 +43,62 @@ class LLMClient:
 
         self.client = openai.AsyncOpenAI(api_key=self.api_key)
         self.model = self.config.model
-        self.temperature = self.config.temperature
+        self.temperature = self.config.temperature if temperature is None else temperature
+        self.seed = seed
         self.call_count = 0
+        self.cache_hits = 0
         self.call_log: list[dict[str, Any]] = []
+        self.cache_dir: Path | None = Path(cache_dir) if cache_dir else None
+        if self.cache_dir is not None:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _cache_path(self, key: str) -> Path | None:
+        if self.cache_dir is None:
+            return None
+        return self.cache_dir / f"{key}.json"
+
+    def _cache_get_parsed(self, key: str, schema: Type[T]) -> T | None:
+        path = self._cache_path(key)
+        if path is None or not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if payload.get("kind") != "parse":
+                return None
+            return schema.model_validate(payload["data"])
+        except Exception as e:
+            logger.warning("LLM cache miss for %s: %s", key[:8], e)
+            return None
+
+    def _cache_put_parsed(self, key: str, obj: BaseModel) -> None:
+        path = self._cache_path(key)
+        if path is None:
+            return
+        path.write_text(
+            json.dumps({"kind": "parse", "data": obj.model_dump()}, indent=2),
+            encoding="utf-8",
+        )
+
+    def _cache_get_text(self, key: str) -> str | None:
+        path = self._cache_path(key)
+        if path is None or not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if payload.get("kind") != "generate":
+                return None
+            return payload["data"]
+        except Exception:
+            return None
+
+    def _cache_put_text(self, key: str, text: str) -> None:
+        path = self._cache_path(key)
+        if path is None:
+            return
+        path.write_text(
+            json.dumps({"kind": "generate", "data": text}, indent=2),
+            encoding="utf-8",
+        )
 
     async def parse(
         self,
@@ -42,13 +118,22 @@ class LLMClient:
                 {"role": "user", "content": prompt},
             ]
 
-        kwargs = {
+        cache_key = _cache_key(self.model, messages, schema.__name__, self.temperature, self.seed)
+        cached = self._cache_get_parsed(cache_key, schema)
+        if cached is not None:
+            self.cache_hits += 1
+            self.call_count += 1
+            self.call_log.append({"stage": stage, "cached": True})
+            return cached
+
+        kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "response_format": schema,
             "temperature": self.temperature,
         }
-
+        if self.seed is not None:
+            kwargs["seed"] = self.seed
         if tools:
             kwargs["tools"] = tools
 
@@ -58,6 +143,7 @@ class LLMClient:
                 self._record_call(stage, response)
                 parsed = response.choices[0].message.parsed
                 if parsed:
+                    self._cache_put_parsed(cache_key, parsed)
                     return parsed
                 logger.error("LLM returned None instead of parsed schema.")
             except openai.RateLimitError:
@@ -78,16 +164,31 @@ class LLMClient:
         stage: str = "generate",
     ) -> str:
         """Generate plain text from the configured model."""
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=self.temperature,
-        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        cache_key = _cache_key(self.model, messages, "_text_", self.temperature, self.seed)
+        cached = self._cache_get_text(cache_key)
+        if cached is not None:
+            self.cache_hits += 1
+            self.call_count += 1
+            self.call_log.append({"stage": stage, "cached": True})
+            return cached
+
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+        }
+        if self.seed is not None:
+            kwargs["seed"] = self.seed
+
+        response = await self.client.chat.completions.create(**kwargs)
         self._record_call(stage, response)
-        return response.choices[0].message.content or ""
+        text = response.choices[0].message.content or ""
+        self._cache_put_text(cache_key, text)
+        return text
 
     def _record_call(self, stage: str, response: Any) -> None:
         self.call_count += 1
